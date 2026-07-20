@@ -19,6 +19,11 @@
 #define ADC_EN 14  // Used for enabling battery voltage measurements - not used in this program
 // #define measureRenderTime
 
+// Explicit unique structural identification layout for this custom extension
+#ifndef USERMOD_ID_TTGO_TDISPLAY_MATRIX
+#define USERMOD_ID_TTGO_TDISPLAY_MATRIX 0x9D5F
+#endif
+
 class TTGOTDisplayOutputUsermod : public Usermod {
   private:
     TFT_eSPI tft = TFT_eSPI(TFT_WIDTH, TFT_HEIGHT); // Setup display
@@ -32,20 +37,25 @@ class TTGOTDisplayOutputUsermod : public Usermod {
     uint16_t oneWidth = 0;
     uint16_t oneHeight = 0;
     uint16_t margin = 1;
+    bool enabled = true; // Required config runtime toggle flag
+
 #ifdef measureRenderTime
     uint32_t rtSum     = 0;
     uint32_t rtSamples = 0;
 #endif
+
     bool isSettingsValid(){
       if(!strip.isMatrix) return false;
-      if(strip.panels!=1) return false;
       return true;
     }
 
     bool isSettingsChanged(){
-      if((strip.panel[0].serpentine?0:1) != margin) return true;
-      if(blocksW!=strip.panel[0].width) return true;
-      if(blocksH!=strip.panel[0].height) return true;
+      Segment& mainSeg = strip.getFirstSelectedSeg();
+      // Emulating older direct layout flags through modern matrix segmentation rules
+      uint16_t currentMargin = mainSeg.options & SEG_OPTION_REVERSED ? 0 : 1; 
+      if(currentMargin != margin) return true;
+      if(blocksW != mainSeg.virtualWidth()) return true;
+      if(blocksH != mainSeg.virtualHeight()) return true;
       return false;
     }
 
@@ -55,9 +65,10 @@ class TTGOTDisplayOutputUsermod : public Usermod {
 
       tft.fillScreen(TFT_BLACK); // clear screen on change
 
-      blocksW = strip.panel[0].width;
-      blocksH = strip.panel[0].height;
-      margin  = strip.panel[0].serpentine?0:1;
+      Segment& mainSeg = strip.getFirstSelectedSeg();
+      blocksW = mainSeg.virtualWidth();
+      blocksH = mainSeg.virtualHeight();
+      margin  = mainSeg.options & SEG_OPTION_REVERSED ? 0 : 1;
 
       oneWidth  = floor((tft.width()  - (blocksW-1)*margin) / blocksW);
       oneHeight = floor((tft.height() - (blocksH-1)*margin) / blocksH);
@@ -67,48 +78,42 @@ class TTGOTDisplayOutputUsermod : public Usermod {
       top  = (tft.height() - (blocksH-1)*margin - oneHeight * blocksH) / 2;
       left = (tft.width()  - (blocksW-1)*margin - oneWidth  * blocksW) / 2;
 
-      // Serial.printf("blocksW: %d, blocksH: %d, oneWidth: %d, oneHeight: %d, top: %d, left: %d\n", blocksW, blocksH, oneWidth, oneHeight, top, left);
-
       return true;
     }
 
-
-
     void setBrightness(){
-      if(backlightChannel==255){
-        digitalWrite(TFT_BL, bri==0?LOW:HIGH );
+      if(!enabled) {
+        digitalWrite(TFT_BL, LOW);
+        return;
+      }
+      
+      if(backlightChannel == 255){
+        digitalWrite(TFT_BL, bri == 0 ? LOW : HIGH);
       }else{
+#if defined(ESP_ARDUINO_VERSION_VAL) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+        ledcWrite(TFT_BL, bri); // Modern Core 3 API handles mapping natively 
+#else
         ledcWrite(backlightChannel, bri);
+#endif
       }
     }
 
   public:
 
-    void setup() {
-      // Serial.println("T-Display usermod - Setup");
+    inline uint16_t getId() override {
+      return USERMOD_ID_TTGO_TDISPLAY_MATRIX;
+    }
 
-#ifdef UM_DisplayMatrix_Pins
-      uint8_t pinsToAllocate[] = {UM_DisplayMatrix_Pins};
-      uint8_t pinCount = sizeof(pinsToAllocate) / sizeof(uint8_t);
-      String notAllocated = "";
-      String allPins = "";
-      for(uint8_t i=0;i<pinCount;i++){
-        allPins += ", ";
-        allPins += pinsToAllocate[i];
-        if(!PinManager::allocatePin(pinsToAllocate[i], true, PinOwner::UM_Unspecified)){ // UM_DisplayMatrix
-          notAllocated += ", " + pinsToAllocate[i];
-        }  
+    void setup() override {
+      // Safely register display illumination line with central pin tracking engine
+#ifdef TFT_BL
+      if (!pinManager.allocatePin(TFT_BL, true, PinOwner::UM_Display)) {
+        Serial.println(F("TTGO T-Display Matrix Usermod: Failed to allocate backlight pin."));
       }
-      if(notAllocated.length()>0){
-        Serial.printf( "Usermod DisplayMatrix - Cannot allocate all the pins (%s) from (%s)\n", notAllocated.substring(2), allPins.substring(2)) ;
-      }else{
-        Serial.printf( "Usermod DisplayMatrix - All %d pins alocated (%s)\n", pinCount, allPins.substring(2)) ;
-      }
-      //pinManager.allocatePin(TFT_BL, true, PinOwner::UM_Unspecified);  // UM_DisplayMatrix
 #endif
 
       tft.init();
-      tft.setRotation(3);  //Rotation here is set up for the text to be readable with the port on the left.
+      tft.setRotation(3);  // Rotation here is set up for the text to be readable with the port on the left.
       tft.fillScreen(TFT_BLACK);
       tft.setTextColor(TFT_WHITE);
       tft.setTextDatum(MC_DATUM);
@@ -128,28 +133,31 @@ class TTGOTDisplayOutputUsermod : public Usermod {
     }
 
     void setupBrightnessControl(){
-      backlightChannel = PinManager::allocateLedc(1);
-      if(backlightChannel==255){
+      backlightChannel = pinManager.allocateLedc(1);
+      if(backlightChannel == 255){
         pinMode(TFT_BL, OUTPUT);
       }else{
-        ledcSetup(backlightChannel, 10000, 8);    // t-display-s3 led driver: AW9364DNR, T-display direct led control with pwm
+        // Modernized architecture targeting updated cross-platform framework channels
+#if defined(ESP_ARDUINO_VERSION_VAL) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+        ledcAttach(TFT_BL, 10000, 8); 
+#else
+        ledcSetup(backlightChannel, 10000, 8);
         ledcAttachPin(TFT_BL, backlightChannel);
+#endif
       }
     }
 
-
-
-    void onStateChange(uint8_t mode) {
+    void onStateChange(uint8_t mode) override {
       setBrightness();
     }
 
-    void loop() {
+    void loop() override {
+      if(!enabled || bri==0) return;
+      if(!checkSettings()) return;
+
 #ifdef measureRenderTime
       unsigned long rtStart = micros();
 #endif
-
-      if(bri==0) return;
-      if(!checkSettings()) return;
 
       for(uint16_t h = 0; h<blocksH; h++){
         for(uint16_t w = 0; w<blocksW; w++){
@@ -162,12 +170,27 @@ class TTGOTDisplayOutputUsermod : public Usermod {
         rtSum += micros() - rtStart;
         rtSamples++;
         if(rtSamples==100){
-          Serial.printf("2D Matrix: %dx%d with %d gap, display: %d microsecond => %d fps\n", blocksW, blocksH, margin, rtSum / rtSamples, sampleCount * 1000000 / rtSum);
+          Serial.printf("2D Matrix: %dx%d with %d gap, display: %lu microseconds\n", blocksW, blocksH, margin, rtSum / rtSamples);
           rtSamples = 0;
-          sampleCount = 0;
+          rtSum = 0;
         }
       }
 #endif
     }
 
+    // Modern structural UI adjustments to prevent layout engine validation errors
+    void addToConfig(JsonObject& root) override {
+      JsonObject topObject = root.createNestedObject(F("ttgo_tdisplay_matrix"));
+      topObject[F("enabled")] = enabled;
+      topObject[F("forceSquare")] = forceSquareBlocks;
+    }
+
+    bool readFromConfig(JsonObject& root) override {
+      JsonObject topObject = root[F("ttgo_tdisplay_matrix")];
+      if (topObject.isNull()) return false;
+
+      enabled = topObject[F("enabled")] | enabled;
+      forceSquareBlocks = topObject[F("forceSquare")] | forceSquareBlocks;
+      return true;
+    }
 };
