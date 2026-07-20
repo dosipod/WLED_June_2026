@@ -1,0 +1,25 @@
+{
+  "name": "usermod_v2_TTGO-TDisplay_output",
+  "version": "2.0.0",
+  "description": "TTGO T-Display screen driver for rendering WLED 2D Matrix layouts directly onto an integrated TFT panel.",
+  "keywords": "wled, usermod, tft, t-display, matrix, hub75",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com"
+  },
+  "authors": [
+    {
+      "name": "dosipod"
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": {
+    "bodmer/TFT_eSPI": "^2.5.43"
+  },
+  "build": {
+    "flags": [
+      "-D USERMOD_ID_TTGO_TDISPLAY_MATRIX=0x9D5F"
+    ]
+  }
+}
