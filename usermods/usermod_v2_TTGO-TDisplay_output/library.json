@@ -1,5 +1,6 @@
 {
   "name": "usermod_v2_TTGO-TDisplay_output",
+  "build": { "libArchive": false },
   "version": "2.0.0",
   "description": "TTGO T-Display screen driver for rendering WLED 2D Matrix layouts directly onto an integrated TFT panel.",
   "keywords": "wled, usermod, tft, t-display, matrix, hub75",
