@@ -172,11 +172,8 @@ class TTGOTDisplayOutputUsermod : public Usermod {
 
 };
 
-
-
-
     
-static TTGO-TDisplay_output TT-TD_output;
-REGISTER_USERMOD(TT-TD_output);
+static TTGO-TDisplay_output TTGOTDisplayOutputUsermod;
+REGISTER_USERMOD(TTGOTDisplayOutputUsermod);
 
 
