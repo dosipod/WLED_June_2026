@@ -20,8 +20,8 @@
 // #define measureRenderTime
 
 // Explicit unique structural identification layout for this custom extension
-#ifndef USERMOD_ID_TTGO_TDISPLAY_MATRIX
-#define USERMOD_ID_TTGO_TDISPLAY_MATRIX 0x9D5F
+#ifndef USERMOD_ID_TTGO_TDISPLAY_OUTPUT
+#define USERMOD_ID_TTGO_TDISPLAY_OUTPUT 0x9D5F
 #endif
 
 class TTGOTDisplayOutputUsermod : public Usermod {
@@ -194,3 +194,7 @@ class TTGOTDisplayOutputUsermod : public Usermod {
       return true;
     }
 };
+
+
+static TTGO_TDISPLAY_OUTPUT;
+REGISTER_USERMOD(TTGO_TDISPLAY_OUTPUT);
