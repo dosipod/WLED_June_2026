@@ -1,7 +1,0 @@
-{
-  "name": "TTGO_TDisplay_output",
-  "build": { "libArchive": false },
-  "dependencies": {
-    "TFT_eSPI":"~2.5.33"
-  }
-}
