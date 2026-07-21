@@ -24,7 +24,7 @@ class TTGOTDisplayOutputUsermod : public Usermod {
 #endif
     bool isSettingsValid(){
       if(!strip.isMatrix) return false;
-      if(strip.panels!=1) return false;
+      //if(strip.panels!=1) return false;
       return true;
     }
 
