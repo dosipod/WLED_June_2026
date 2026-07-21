@@ -1,16 +1,3 @@
-/*
-  -----------------------------------------------------------------------------------------------
-  Lilygo/TTGO T-Display screen output
-  -----------------------------------------------------------------------------------------------
-
-  Ideas/todos:
-    - add rotation support
-    - choose between square and nonsquare pixels (nonsquare fills the screen, square goes to center)
-    - add reserved pins (tft) to xml.cpp
-    - usermod configuration instead of led and 2D settings ?
-    - add "display" as led type 
-*/
-
 
 #include "wled.h"
 #include <TFT_eSPI.h>
@@ -37,7 +24,7 @@ class TTGOTDisplayOutputUsermod : public Usermod {
 #endif
     bool isSettingsValid(){
       if(!strip.isMatrix) return false;
-      if(strip.panel!=1) return false;
+      if(strip.panels!=1) return false;
       return true;
     }
 
@@ -170,6 +157,6 @@ class TTGOTDisplayOutputUsermod : public Usermod {
     }
 
 };
-    
+
 static TTGOTDisplayOutputUsermod TTGO_TDISPLAY_OUTPUT;
 REGISTER_USERMOD(TTGO_TDISPLAY_OUTPUT);
