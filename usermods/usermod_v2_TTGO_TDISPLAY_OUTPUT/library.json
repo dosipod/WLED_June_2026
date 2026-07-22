@@ -1,7 +1,7 @@
 {
   "name": "TTGO_TDISPLAY_OUTPUT",
-  "build": { "libArchive": false }
+  "build": { "libArchive": false },
     "dependencies": {
-    "Bodmer/TFT_eSP":"~2.5.33"
+    "TFT_eSP":"2.5.33"
   }
 }
