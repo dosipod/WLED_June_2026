@@ -86,9 +86,9 @@ class TTGOTDisplayOutputUsermod : public Usermod {
         }  
       }
       if(notAllocated.length()>0){
-        Serial.printf( "Usermod DisplayMatrix - Cannot allocate all the pins (%s) from (%s)\n", notAllocated.substring(2), allPins.substring(2)) ;
+        Serial.printf( "Usermod DisplayMatrix_out - Cannot allocate all the pins (%s) from (%s)\n", notAllocated.substring(2), allPins.substring(2)) ;
       }else{
-        Serial.printf( "Usermod DisplayMatrix - All %d pins alocated (%s)\n", pinCount, allPins.substring(2)) ;
+        Serial.printf( "Usermod DisplayMatrix_out - All %d pins allocated (%s)\n", pinCount, allPins.substring(2)) ;
       }
       //pinManager.allocatePin(TFT_BL, true, PinOwner::UM_Unspecified);  // UM_DisplayMatrix
 #endif
