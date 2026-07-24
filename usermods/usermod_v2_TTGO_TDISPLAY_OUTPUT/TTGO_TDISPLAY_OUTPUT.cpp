@@ -12,16 +12,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void setup() override {
       DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting setup..."));
 
-      // Array of configuration pins from platformio.ini
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       const char* pinNames[]  = {"MOSI", "SCLK", "CS", "DC", "RST", "BL"};
       
       pinsAllocated = true;
-
-      // Access PinManager using instance() method
       PinManager* pm = PinManager::instance();
 
-      // Safe registration loop using native WLED PinManager mechanics
       for (uint8_t i = 0; i < 6; i++) {
         if (pinsToAllocate[i] >= 0) {
           DEBUG_PRINT(F("[UM_DisplayMatrix] Allocating "));
@@ -29,7 +25,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           DEBUG_PRINT(F(" on Pin: "));
           DEBUG_PRINTLN(pinsToAllocate[i]);
 
-          // Use UM_Unspecified to ensure seamless compatibility without core changes
           if (!pm->allocatePin(pinsToAllocate[i], true, PinOwner::UM_Unspecified)) {
             DEBUG_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
             DEBUG_PRINTLN(pinNames[i]);
@@ -46,7 +41,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       DEBUG_PRINTLN(F("[UM_DisplayMatrix] All pins allocated successfully. Initializing TFT..."));
 
-      // Initialize hardware display
       tft.init();
       tft.setRotation(1);
       tft.fillScreen(TFT_BLACK);
@@ -61,11 +55,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void loop() override {
       if (!initDone || !pinsAllocated) return;
 
-      // Throttle display updates to every 1000ms to keep main loop fast
       if (millis() - lastUpdate > 1000) {
         lastUpdate = millis();
         
-        // Simple screen update to confirm it runs alongside Wi-Fi
         tft.fillScreen(TFT_BLACK);
         tft.drawString("WLED Active", 10, 10);
         tft.drawString(WiFi.localIP().toString().c_str(), 10, 40);
@@ -78,11 +70,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     uint16_t getId() override {
-      // Use standard UNSPECIFIED macro to prevent missing ID errors
-      return USERMOD_ID_UNSPECIFIED;
+      // Matches the custom definition at line 233 of your const.h exactly
+      return USERMOD_ID_TTGO_TDISPLAY_OUTPUT;
     }
 };
 
-// Official registration format compliant with the modern WLED specification
 static TTGO_TDISPLAY_OUTPUT ttgo_display_mod;
 REGISTER_USERMOD(ttgo_display_mod);
