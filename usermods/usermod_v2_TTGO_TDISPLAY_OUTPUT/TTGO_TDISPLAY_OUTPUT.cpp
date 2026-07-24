@@ -63,17 +63,17 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // Reverted to native unrotated 170x320 resolution matrix.
-      // Standard rotation 1 translates these boundaries into landscape mode safely.
+      // PERFECTED RESOLUTION FOR 1.9" HMI MODULE:
+      // Instantiated at native 170x320 configuration with 0 offsets to completely remove the bottom dead space.
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
         1,     // Landscape orientation layout
         true,  // IPS mode active
-        170,   // Native Unrotated Width
-        320,   // Native Unrotated Height
-        35,    // 35 Column hardware offset
-        0      // 0 Row offset
+        170,   // Unrotated width
+        320,   // Unrotated height
+        0,     // 0 Column Offset (Fills the entire left edge)
+        0      // 0 Row Offset (Fills the entire bottom edge)
       );
 
       gfx->begin();
@@ -95,7 +95,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       gfx->startWrite();
       
-      // DYNAMIC RESOLUTION MAPPING: Read active rotated boundaries directly from the driver
+      // Pull rotated landscape dimensions safely from the active driver layer
       float displayWidth  = (float)gfx->width();
       float displayHeight = (float)gfx->height();
 
