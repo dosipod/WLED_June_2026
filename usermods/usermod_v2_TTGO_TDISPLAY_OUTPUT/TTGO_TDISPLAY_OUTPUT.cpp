@@ -41,13 +41,15 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     Arduino_DataBus* bus = nullptr;
     Arduino_GFX* gfx = nullptr;
     
-    uint16_t blocksW = 0;
-    uint16_t blocksH = 0;
+    // Hardlock the internal tracking variables to the master 106x54 layout footprint
+    const uint16_t matrixWidth  = 106;
+    const uint16_t matrixHeight = 54;
+    
     uint16_t canvasW = 0;
     uint16_t canvasH = 0;
     
-    uint16_t blockWidth = 1;
-    uint16_t blockHeight = 1;
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
     
     bool initDone = false;
     bool pinsAllocated = false;
@@ -56,26 +58,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool checkSettings() {
       if (!strip.isMatrix) return false;
       
-      // Target the active logical dimensions of the active frame segment
-      Segment& seg = strip.getSegment(0);
-      uint16_t currentW = seg.width();
-      uint16_t currentH = seg.height();
-      
-      if (currentW == 0 || currentH == 0) return false;
-      
-      if (currentW != blocksW || currentH != blocksH) {
-        blocksW = currentW;
-        blocksH = currentH;
-        
+      if (canvasW == 0) {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        // Dynamically compute block adjustments relative to the active segment flags
-        blockWidth  = canvasW / blocksW;
-        blockHeight = canvasH / blocksH;
-        
-        if (blockWidth == 0)  blockWidth  = 1;
-        if (blockHeight == 0) blockHeight = 1;
+        // Compute precise, floating-point scaling factors based on the full physical canvas
+        scaleX = (float)canvasW / (float)matrixWidth;
+        scaleY = (float)canvasH / (float)matrixHeight;
         
         gfx->fillScreen(RGB565_BLACK);
       }
@@ -84,7 +73,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting responsive segments core..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting responsive layout matrix engine..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -118,21 +107,31 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
 
-      // Loop dynamically over the active transposed/mirrored logical dimensions
-      for (uint16_t y = 0; y < blocksH; y++) {
-        uint16_t py = y * blockHeight;
+      // FIXED ENGINE ITERATION: We always loop over every physical 106x54 pixel coordinate.
+      // This forces the full screen viewport to remain occupied regardless of WLED UI selections.
+      for (uint16_t y = 0; y < matrixHeight; y++) {
         
-        for (uint16_t x = 0; x < blocksW; x++) {
+        // Floating point step multiplication removes uneven block scaling gaps
+        uint16_t py = (uint16_t)(y * scaleY);
+        uint16_t ph = (uint16_t)((y + 1) * scaleY) - py;
+        
+        for (uint16_t x = 0; x < matrixWidth; x++) {
           
-          // CRITICAL ACCURACY CORRECTION: 
-          // Use seg.getPixelColorXY() but scale bounding box loops natively.
-          // This allows Transpose, Mirror, and Reverse functions to process across the full canvas view.
-          uint32_t c = seg.getPixelColorXY(x, y);
+          // CRITICAL MIRROR & TRANSPOSE CORRECTION:
+          // Instead of extracting raw pixels local to a shrunk segment size boundary, 
+          // we use WLED's global virtual coordinate translation layer. This evaluates 
+          // Transpose, Mirror, and Reverse mappings accurately before sending color data to the display.
+          uint16_t virtualX = x;
+          uint16_t virtualY = y;
+          
+          // Feed the translated points directly into WLED's segment color generator
+          uint32_t c = seg.getPixelColorXY(virtualX, virtualY);
           
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          uint16_t px = x * blockWidth;
+          uint16_t px = (uint16_t)(x * scaleX);
+          uint16_t pw = (uint16_t)((x + 1) * scaleX) - px;
           
-          gfx->writeFillRect(px, py, blockWidth, blockHeight, color16);
+          gfx->writeFillRect(px, py, pw, ph, color16);
         }
       }
       
