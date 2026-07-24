@@ -46,6 +46,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t canvasW = 0;
     uint16_t canvasH = 0;
     
+    uint16_t blockWidth = 1;
+    uint16_t blockHeight = 1;
+    
     bool initDone = false;
     bool pinsAllocated = false;
     bool lastPowerState = true;
@@ -58,11 +61,21 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       if (currentW == 0 || currentH == 0) return false;
       
+      // Cache configuration dimensions to avoid inline divisions
       if (currentW != blocksW || currentH != blocksH) {
         blocksW = currentW;
         blocksH = currentH;
+        
         canvasW = gfx->width();
         canvasH = gfx->height();
+        
+        // Calculate clean integer block scaling sizes
+        blockWidth  = canvasW / blocksW;
+        blockHeight = canvasH / blocksH;
+        
+        if (blockWidth == 0)  blockWidth  = 1;
+        if (blockHeight == 0) blockHeight = 1;
+        
         gfx->fillScreen(RGB565_BLACK);
       }
       return true;
@@ -70,7 +83,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing clean settings..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting high-speed matrix loop setup..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -104,49 +117,19 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
 
-      // BILINEAR INTERPOLATION HACK:
-      // Loop over every physical pixel of the display panel.
-      // We calculate smooth blending gradients between the low-res WLED pixels.
-      for (uint16_t screenY = 0; screenY < canvasH; screenY += 2) { // Step by 2 for speed
-        float virtualY = ((float)screenY / (float)canvasH) * (blocksH - 1);
-        uint16_t y0 = (uint16_t)virtualY;
-        uint16_t y1 = (y0 < blocksH - 1) ? y0 + 1 : y0;
-        float dy = virtualY - y0;
-
-        for (uint16_t screenX = 0; screenX < canvasW; screenX += 2) { // Step by 2 for speed
-          float virtualX = ((float)screenX / (float)canvasW) * (blocksW - 1);
-          uint16_t x0 = (uint16_t)virtualX;
-          uint16_t x1 = (x0 < blocksW - 1) ? x0 + 1 : x0;
-          float dx = virtualX - x0;
-
-          // Fetch the 4 surrounding low-res colors
-          uint32_t c00 = seg.getPixelColorXY(x0, y0);
-          uint32_t c10 = seg.getPixelColorXY(x1, y0);
-          uint32_t c01 = seg.getPixelColorXY(x0, y1);
-          uint32_t c11 = seg.getPixelColorXY(x1, y1);
-
-          // Interpolate Red channel
-          float r = ((c00 >> 16) & 0xFF) * (1 - dx) * (1 - dy) +
-                    ((c10 >> 16) & 0xFF) * dx * (1 - dy) +
-                    ((c01 >> 16) & 0xFF) * (1 - dx) * dy +
-                    ((c11 >> 16) & 0xFF) * dx * dy;
-
-          // Interpolate Green channel
-          float g = ((c00 >> 8) & 0xFF) * (1 - dx) * (1 - dy) +
-                    ((c10 >> 8) & 0xFF) * dx * (1 - dy) +
-                    ((c01 >> 8) & 0xFF) * (1 - dx) * dy +
-                    ((c11 >> 8) & 0xFF) * dx * dy;
-
-          // Interpolate Blue channel
-          float b = (c00 & 0xFF) * (1 - dx) * (1 - dy) +
-                    (c10 & 0xFF) * dx * (1 - dy) +
-                    (c01 & 0xFF) * (1 - dx) * dy +
-                    (c11 & 0xFF) * dx * dy;
-
-          uint16_t color16 = gfx->color565((uint8_t)r, (uint8_t)g, (uint8_t)b);
+      // HIGH-SPEED VIEWPORT TUNING: Loop ONLY through virtual matrix coordinates
+      for (uint16_t y = 0; y < blocksH; y++) {
+        uint16_t py = y * blockHeight;
+        
+        for (uint16_t x = 0; x < blocksW; x++) {
+          // Fetch color data EXACTLY once per matrix pixel block
+          uint32_t c = seg.getPixelColorXY(x, y);
           
-          // Draw a small 2x2 micro-block to instantly double the rendering speed
-          gfx->writeFillRect(screenX, screenY, 2, 2, color16);
+          uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+          uint16_t px = x * blockWidth;
+          
+          // Stream raw data straight to display block registers
+          gfx->writeFillRect(px, py, blockWidth, blockHeight, color16);
         }
       }
       
