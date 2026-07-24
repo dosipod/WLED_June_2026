@@ -1,6 +1,5 @@
 #include "wled.h"
 #include <TFT_eSPI.h>
-#include <SPI.h>
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
@@ -39,23 +38,15 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         return;
       }
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Overriding hardware pins manually..."));
-      
-      // Force hardware pins to standard digital states before calling TFT_eSPI
-      pinMode(TFT_CS, OUTPUT);
-      pinMode(TFT_DC, OUTPUT);
-      pinMode(TFT_RST, OUTPUT);
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Manually checking control pins..."));
       pinMode(TFT_BL, OUTPUT);
-      
-      digitalWrite(TFT_CS, HIGH);
-      digitalWrite(TFT_BL, HIGH); // Turn on backlight early
+      digitalWrite(TFT_BL, HIGH); // Force backlight on early
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Instantiating TFT object..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Instantiating TFT on Heap..."));
       tft = new TFT_eSPI();
-
-      // Trigger low-level controller commands directly instead of using the raw tft->init() wrapper
-      // This bypasses the faulty SPI bus allocation code inside TFT_eSPI 2.5.33
-      tft->getSetup(tft->getRotation()); 
+      
+      // Standard initialization wrapper (safe now that MISO != MOSI)
+      tft->init();
       
       tft->setRotation(1);
       tft->fillScreen(TFT_BLACK);
@@ -63,7 +54,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       tft->setTextSize(2);
       tft->drawString("WLED Initializing...", 10, 10);
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully via low-level hooks!"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully via standard init!"));
       initDone = true;
     }
 
