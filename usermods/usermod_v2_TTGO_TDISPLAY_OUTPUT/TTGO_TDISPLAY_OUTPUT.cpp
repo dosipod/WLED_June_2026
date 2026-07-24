@@ -63,16 +63,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // Explicitly matching the exact native T-Display S3 hardware glass mapping
-      // Uses 170x320 resolution with the vital 35 column shift to drop all static borders
+      // FIXED CANVAS DIMS: Initialized explicitly as 320 Width by 170 Height
+      // Uses the native 35 X-offset and 0 Y-offset to perfectly lock the frame coordinates
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
         1,     // Landscape orientation layout
         true,  // IPS mode active
-        170,   // Display physical Height
         320,   // Display physical Width
-        35,    // CRITICAL: 35 Column hardware offset to secure the edge borders
+        170,   // Display physical Height
+        35,    // 35 Column hardware offset to clear edges
         0      // 0 Row offset
       );
 
@@ -86,27 +86,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void handleOverlayDraw() override {
       if (!initDone || !gfx || !lastPowerState) return;
 
-      // Extract virtual screen matrix dimensions safely using standard branch config variables
       uint16_t matrixWidth  = strip.isMatrix ? Segment::maxWidth  : 1;
       uint16_t matrixHeight = strip.isMatrix ? Segment::maxHeight : 1;
 
       if (matrixWidth == 0 || matrixHeight == 0) return;
 
-      // Fetch the active master segment structure to enable clean layout calculations
       Segment& seg = strip.getSegment(0);
 
       gfx->startWrite();
       
-      // Calculate proportional scale steps to scale your 106x54 grid to fill the 320x170 frame
+      // Calculate scaling steps against the strict 320x170 hardware resolution canvas
       float scaleX = 320.0f / (float)matrixWidth;
       float scaleY = 170.0f / (float)matrixHeight;
       
-      // Dual-axis 2D Matrix coordinate mapping loops
       for (uint16_t y = 0; y < matrixHeight; y++) {
         for (uint16_t x = 0; x < matrixWidth; x++) {
           
-          // CRITICAL CORRECTION: Use the 2D layout engine lookup method.
-          // This respects Serpentine configurations, path inversions, or layout flips.
           uint32_t c = seg.getPixelColorXY(x, y);
           
           uint8_t r = (c >> 16) & 0xFF;
@@ -115,7 +110,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           
           uint16_t color16 = gfx->color565(r, g, b);
           
-          // Map individual points directly to scaled rectangles filling out window spaces smoothly
           uint16_t px = (uint16_t)(x * scaleX);
           uint16_t py = (uint16_t)(y * scaleY);
           uint16_t pw = (uint16_t)((x + 1) * scaleX) - px;
