@@ -82,13 +82,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       initDone = true;
     }
 
-    // Correct WLED pipeline method hook
     void handleOverlayDraw() override {
       if (!initDone || !gfx || !lastPowerState) return;
 
-      // Safely fetch matrix dimensions from modern WLED core structures
-      uint16_t matrixWidth  = strip.isMatrix ? strip.getMatrixWidth()  : 1;
-      uint16_t matrixHeight = strip.isMatrix ? strip.getMatrixHeight() : 1;
+      // Extract virtual screen matrix dimensions using the custom branch core configuration variables
+      uint16_t matrixWidth  = strip.isMatrix ? Segment::maxWidth  : 1;
+      uint16_t matrixHeight = strip.isMatrix ? Segment::maxHeight : 1;
 
       if (matrixWidth == 0 || matrixHeight == 0) return;
 
@@ -98,7 +97,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       for (uint16_t y = 0; y < matrixHeight; y++) {
         for (uint16_t x = 0; x < matrixWidth; x++) {
           
-          // Use modern safe API mapping coordinates for 2D setups
+          // Fetch pixel calculation index natively mapped to the performance bus array
           uint32_t c = strip.getPixelColor(x + (y * matrixWidth));
           
           uint8_t r = (c >> 16) & 0xFF;
@@ -107,8 +106,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           
           uint16_t color16 = gfx->color565(r, g, b);
           
-          // Scale pixels dynamically based on your configured virtual matrix size
-          // Calculates proportional block size to safely fit within the 320x170 panel layout
+          // Scale blocks dynamically to scale the display array directly up to the 320x170 glass
           uint16_t blockWidth  = 320 / matrixWidth;
           uint16_t blockHeight = 170 / matrixHeight;
           if (blockWidth == 0)  blockWidth  = 1;
@@ -135,7 +133,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (!lastPowerState) return;
 
-      // Overlay text metadata safely every 5 seconds
       if (millis() - lastUpdate > 5000) {
         lastUpdate = millis();
         gfx->setTextSize(2);
