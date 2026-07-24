@@ -46,6 +46,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t canvasW = 0;
     uint16_t canvasH = 0;
     
+    // Performance Downscale Configuration Constants
+    uint16_t sampleW = 53;  // Target horizontal calculation points (Max Speed)
+    uint16_t sampleH = 27;  // Target vertical calculation points (Max Speed)
+    
     uint16_t blockWidth = 1;
     uint16_t blockHeight = 1;
     
@@ -61,7 +65,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       if (currentW == 0 || currentH == 0) return false;
       
-      // Cache configuration dimensions to avoid inline divisions
       if (currentW != blocksW || currentH != blocksH) {
         blocksW = currentW;
         blocksH = currentH;
@@ -69,9 +72,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        // Calculate clean integer block scaling sizes
-        blockWidth  = canvasW / blocksW;
-        blockHeight = canvasH / blocksH;
+        // Dynamically compute output block sizes bound to the 53x27 sample step metrics
+        blockWidth  = canvasW / sampleW;
+        blockHeight = canvasH / sampleH;
         
         if (blockWidth == 0)  blockWidth  = 1;
         if (blockHeight == 0) blockHeight = 1;
@@ -83,7 +86,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting high-speed matrix loop setup..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting Downscaled Sub-Sampler Core..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -117,18 +120,24 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
 
-      // HIGH-SPEED VIEWPORT TUNING: Loop ONLY through virtual matrix coordinates
-      for (uint16_t y = 0; y < blocksH; y++) {
+      // DDA STRIDE CORE: Iterate strictly over the high-speed 53x27 sampler boundaries
+      for (uint16_t y = 0; y < sampleH; y++) {
         uint16_t py = y * blockHeight;
         
-        for (uint16_t x = 0; x < blocksW; x++) {
-          // Fetch color data EXACTLY once per matrix pixel block
-          uint32_t c = seg.getPixelColorXY(x, y);
+        // Map sample coordinates to WLED's full 106x54 grid to skip tracking blocks cleanly
+        uint16_t virtualY = (y * blocksH) / sampleH;
+        if (virtualY >= blocksH) virtualY = blocksH - 1;
+        
+        for (uint16_t x = 0; x < sampleW; x++) {
+          uint16_t virtualX = (x * blocksW) / sampleW;
+          if (virtualX >= blocksW) virtualX = blocksW - 1;
+          
+          // Pull raw high-density color coordinates directly from the memory map
+          uint32_t c = seg.getPixelColorXY(virtualX, virtualY);
           
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
           uint16_t px = x * blockWidth;
           
-          // Stream raw data straight to display block registers
           gfx->writeFillRect(px, py, blockWidth, blockHeight, color16);
         }
       }
