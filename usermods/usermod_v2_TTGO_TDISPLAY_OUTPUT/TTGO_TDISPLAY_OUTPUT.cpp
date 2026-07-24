@@ -57,9 +57,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool pinsAllocated = false;
     bool lastPowerState = true;
 
-    // String keys for configuration binding storage mappings
-    const char SETTING_SAMPLE_W[] = "Sample-Width";
-    const char SETTING_SAMPLE_H[] = "Sample-Height";
+    // Fixed sizes explicitly declared to resolve flexible member errors
+    const char SETTING_SAMPLE_W[13] = "Sample-Width";
+    const char SETTING_SAMPLE_H[14] = "Sample-Height";
 
     bool checkSettings() {
       if (!strip.isMatrix) return false;
@@ -69,7 +69,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       if (currentW == 0 || currentH == 0) return false;
       
-      // Enforce bounds constraints against UI sliders
       if (sampleW < 4)   sampleW = 4;
       if (sampleW > 320) sampleW = 320;
       if (sampleH < 4)   sampleH = 4;
@@ -129,7 +128,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
 
-      // Recalculate runtime canvas blocks relative to slider alterations
       uint16_t currentBlockWidth  = canvasW / (uint16_t)sampleW;
       uint16_t currentBlockHeight = canvasH / (uint16_t)sampleH;
       if (currentBlockWidth == 0)  currentBlockWidth  = 1;
@@ -168,12 +166,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
     }
 
-    // UI CONFIG EXTRACTION WRAPPERS (v2 Architecture)
     void addToConfig(JsonObject& root) override {
       JsonObject top = root.createNestedObject(F("DisplayMatrix"));
       top[FPSTR(SETTING_SAMPLE_W)] = sampleW;
       top[FPSTR(SETTING_SAMPLE_H)] = sampleH;
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Config sliders pushed to JSON webpage context."));
     }
 
     bool readFromConfig(JsonObject& root) override {
@@ -184,11 +180,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       int oldW = sampleW;
       int oldH = sampleH;
 
-      if (top[FPSTR(SETTING_SAMPLE_W]].is<int>()) sampleW = top[FPSTR(SETTING_SAMPLE_W)];
-      if (top[FPSTR(SETTING_SAMPLE_H]].is<int>()) sampleH = top[FPSTR(SETTING_SAMPLE_H)];
+      // Typo corrected: closing brackets aligned properly outside the FPSTR macros
+      if (top[FPSTR(SETTING_SAMPLE_W)].is<int>()) sampleW = top[FPSTR(SETTING_SAMPLE_W)];
+      if (top[FPSTR(SETTING_SAMPLE_H)].is<int>()) sampleH = top[FPSTR(SETTING_SAMPLE_H)];
 
       if (sampleW != oldW || sampleH != oldH) {
-        // Trigger cache reset forcing canvas cleaning
         blocksW = 0; 
       }
       return true;
