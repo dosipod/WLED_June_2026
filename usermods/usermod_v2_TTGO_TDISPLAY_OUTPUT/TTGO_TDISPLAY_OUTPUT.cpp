@@ -46,9 +46,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t canvasW = 0;
     uint16_t canvasH = 0;
     
-    // Performance Downscale Configuration Constants
-    uint16_t sampleW = 53;  // Target horizontal calculation points (Max Speed)
-    uint16_t sampleH = 27;  // Target vertical calculation points (Max Speed)
+    // Dynamic Downscale parameters bound to the WLED UI sliders
+    int sampleW = 53;  
+    int sampleH = 27;  
     
     uint16_t blockWidth = 1;
     uint16_t blockHeight = 1;
@@ -56,6 +56,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool initDone = false;
     bool pinsAllocated = false;
     bool lastPowerState = true;
+
+    // String keys for configuration binding storage mappings
+    const char SETTING_SAMPLE_W[] = "Sample-Width";
+    const char SETTING_SAMPLE_H[] = "Sample-Height";
 
     bool checkSettings() {
       if (!strip.isMatrix) return false;
@@ -65,6 +69,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       if (currentW == 0 || currentH == 0) return false;
       
+      // Enforce bounds constraints against UI sliders
+      if (sampleW < 4)   sampleW = 4;
+      if (sampleW > 320) sampleW = 320;
+      if (sampleH < 4)   sampleH = 4;
+      if (sampleH > 170) sampleH = 170;
+      
       if (currentW != blocksW || currentH != blocksH) {
         blocksW = currentW;
         blocksH = currentH;
@@ -72,9 +82,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        // Dynamically compute output block sizes bound to the 53x27 sample step metrics
-        blockWidth  = canvasW / sampleW;
-        blockHeight = canvasH / sampleH;
+        blockWidth  = canvasW / (uint16_t)sampleW;
+        blockHeight = canvasH / (uint16_t)sampleH;
         
         if (blockWidth == 0)  blockWidth  = 1;
         if (blockHeight == 0) blockHeight = 1;
@@ -86,7 +95,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting Downscaled Sub-Sampler Core..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting Web-Configured Sub-Sampler..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -120,25 +129,26 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
 
-      // DDA STRIDE CORE: Iterate strictly over the high-speed 53x27 sampler boundaries
-      for (uint16_t y = 0; y < sampleH; y++) {
-        uint16_t py = y * blockHeight;
-        
-        // Map sample coordinates to WLED's full 106x54 grid to skip tracking blocks cleanly
-        uint16_t virtualY = (y * blocksH) / sampleH;
+      // Recalculate runtime canvas blocks relative to slider alterations
+      uint16_t currentBlockWidth  = canvasW / (uint16_t)sampleW;
+      uint16_t currentBlockHeight = canvasH / (uint16_t)sampleH;
+      if (currentBlockWidth == 0)  currentBlockWidth  = 1;
+      if (currentBlockHeight == 0) currentBlockHeight = 1;
+
+      for (uint16_t y = 0; y < (uint16_t)sampleH; y++) {
+        uint16_t py = y * currentBlockHeight;
+        uint16_t virtualY = (y * blocksH) / (uint16_t)sampleH;
         if (virtualY >= blocksH) virtualY = blocksH - 1;
         
-        for (uint16_t x = 0; x < sampleW; x++) {
-          uint16_t virtualX = (x * blocksW) / sampleW;
+        for (uint16_t x = 0; x < (uint16_t)sampleW; x++) {
+          uint16_t virtualX = (x * blocksW) / (uint16_t)sampleW;
           if (virtualX >= blocksW) virtualX = blocksW - 1;
           
-          // Pull raw high-density color coordinates directly from the memory map
           uint32_t c = seg.getPixelColorXY(virtualX, virtualY);
-          
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          uint16_t px = x * blockWidth;
+          uint16_t px = x * currentBlockWidth;
           
-          gfx->writeFillRect(px, py, blockWidth, blockHeight, color16);
+          gfx->writeFillRect(px, py, currentBlockWidth, currentBlockHeight, color16);
         }
       }
       
@@ -156,6 +166,32 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           gfx->fillScreen(RGB565_BLACK);
         }
       }
+    }
+
+    // UI CONFIG EXTRACTION WRAPPERS (v2 Architecture)
+    void addToConfig(JsonObject& root) override {
+      JsonObject top = root.createNestedObject(F("DisplayMatrix"));
+      top[FPSTR(SETTING_SAMPLE_W)] = sampleW;
+      top[FPSTR(SETTING_SAMPLE_H)] = sampleH;
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Config sliders pushed to JSON webpage context."));
+    }
+
+    bool readFromConfig(JsonObject& root) override {
+      JsonObject top = root[F("DisplayMatrix")];
+      if (top.isNull()) return false;
+
+      bool configChanged = false;
+      int oldW = sampleW;
+      int oldH = sampleH;
+
+      if (top[FPSTR(SETTING_SAMPLE_W]].is<int>()) sampleW = top[FPSTR(SETTING_SAMPLE_W)];
+      if (top[FPSTR(SETTING_SAMPLE_H]].is<int>()) sampleH = top[FPSTR(SETTING_SAMPLE_H)];
+
+      if (sampleW != oldW || sampleH != oldH) {
+        // Trigger cache reset forcing canvas cleaning
+        blocksW = 0; 
+      }
+      return true;
     }
 
     void addToJsonState(JsonObject& root) override {
