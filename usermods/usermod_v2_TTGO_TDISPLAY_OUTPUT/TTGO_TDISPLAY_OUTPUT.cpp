@@ -63,18 +63,20 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // INITIALIZE IN NATIVE PORTRAIT MODE:
-      // Setting Rotation to 0 maps the hardware frame window cleanly over the 170x320 controller RAM,
-      // which eliminates the automatic landscape offset shifts that are causing the static bars.
+      // OFFICIAL 1.9" HMI HARDWARE DECLARATION MAP:
+      // Uses the unrotated 170x320 footprint with double layout offsets (35,0,35,0)
+      // to remove the white bars across both portrait and landscape orientation tables.
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
-        0,     // Native Portrait Rotation to lock register tables
-        true,  // Active IPS Color Mapping Flag
-        170,   // Native Panel Width
-        320,   // Native Panel Height
-        0,     // 0 Column Offset
-        0      // 0 Row Offset
+        1,         // Landscape orientation layout
+        true,      // IPS mode active
+        170,       // Native width
+        320,       // Native height
+        35,        // Col offset 1
+        0,         // Row offset 1
+        35,        // Col offset 2
+        0          // Row offset 2
       );
 
       gfx->begin();
@@ -96,13 +98,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       gfx->startWrite();
       
-      // Since the driver runs at 170x320 portrait, we map WLED's landscape 
-      // width to the driver's height (320), and WLED's landscape height to the driver's width (170).
-      float displayWidth  = 170.0f;
-      float displayHeight = 320.0f;
+      float displayWidth  = (float)gfx->width();
+      float displayHeight = (float)gfx->height();
 
-      float scaleX = displayWidth / (float)matrixHeight; // Inverted mapping step
-      float scaleY = displayHeight / (float)matrixWidth;  // Inverted mapping step
+      float scaleX = displayWidth / (float)matrixWidth;
+      float scaleY = displayHeight / (float)matrixHeight;
       
       for (uint16_t y = 0; y < matrixHeight; y++) {
         for (uint16_t x = 0; x < matrixWidth; x++) {
@@ -115,16 +115,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           
           uint16_t color16 = gfx->color565(r, g, b);
           
-          // MANUALLY ROTATE ROTATION 1 COORDINATES (Landscape):
-          // Map incoming landscape matrix values (X, Y) to portrait screen registers (new_x, new_y)
-          // formula: new_x = y, new_y = (matrixWidth - 1 - x)
-          uint16_t rotX = y;
-          uint16_t rotY = matrixWidth - 1 - x;
-
-          uint16_t px = (uint16_t)(rotX * scaleX);
-          uint16_t py = (uint16_t)(rotY * scaleY);
-          uint16_t pw = (uint16_t)((rotX + 1) * scaleX) - px;
-          uint16_t ph = (uint16_t)((rotY + 1) * scaleY) - py;
+          uint16_t px = (uint16_t)(x * scaleX);
+          uint16_t py = (uint16_t)(y * scaleY);
+          uint16_t pw = (uint16_t)((x + 1) * scaleX) - px;
+          uint16_t ph = (uint16_t)((y + 1) * scaleY) - py;
 
           gfx->writeFillRect(px, py, pw, ph, color16);
         }
@@ -147,12 +141,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (!lastPowerState) return;
 
-      if (millis() - lastUpdate > 5000) {
+      if (millis() - lastUpdate > 8000) {
         lastUpdate = millis();
         gfx->setTextSize(2);
         gfx->setTextColor(RGB565_WHITE, RGB565_BLACK);
-        // Adjusted text cursor to match the manual orientation layout
-        gfx->setCursor(10, 10);
+        gfx->setCursor(15, 15);
         gfx->println(WiFi.localIP().toString().c_str());
       }
     }
