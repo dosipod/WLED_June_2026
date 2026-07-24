@@ -63,16 +63,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // FIXED CANVAS DIMS: Initialized explicitly as 320 Width by 170 Height
-      // Uses the native 35 X-offset and 0 Y-offset to perfectly lock the frame coordinates
+      // Reverted to native unrotated 170x320 resolution matrix.
+      // Standard rotation 1 translates these boundaries into landscape mode safely.
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
         1,     // Landscape orientation layout
         true,  // IPS mode active
-        320,   // Display physical Width
-        170,   // Display physical Height
-        35,    // 35 Column hardware offset to clear edges
+        170,   // Native Unrotated Width
+        320,   // Native Unrotated Height
+        35,    // 35 Column hardware offset
         0      // 0 Row offset
       );
 
@@ -95,9 +95,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       gfx->startWrite();
       
-      // Calculate scaling steps against the strict 320x170 hardware resolution canvas
-      float scaleX = 320.0f / (float)matrixWidth;
-      float scaleY = 170.0f / (float)matrixHeight;
+      // DYNAMIC RESOLUTION MAPPING: Read active rotated boundaries directly from the driver
+      float displayWidth  = (float)gfx->width();
+      float displayHeight = (float)gfx->height();
+
+      float scaleX = displayWidth / (float)matrixWidth;
+      float scaleY = displayHeight / (float)matrixHeight;
       
       for (uint16_t y = 0; y < matrixHeight; y++) {
         for (uint16_t x = 0; x < matrixWidth; x++) {
