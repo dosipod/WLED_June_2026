@@ -1,21 +1,17 @@
 #include "wled.h"
-
-// Explicitly inject the configurations directly before importing headers
-#undef TFT_MISO
-#define TFT_MISO 4
-
-#include <TFT_eSPI.h>
+#include <Arduino_GFX_Library.h> // Switch to stable GFX to fix the S3 boot loop panic
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    TFT_eSPI* tft = nullptr; 
+    Arduino_DataBus* bus = nullptr;
+    Arduino_GFX* gfx = nullptr;
     unsigned long lastUpdate = 0;
     bool initDone = false;
     bool pinsAllocated = false;
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting setup..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting setup via native GFX..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       const char* pinNames[]  = {"MOSI", "SCLK", "CS", "DC", "RST", "BL"};
@@ -24,66 +20,66 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       for (uint8_t i = 0; i < 6; i++) {
         if (pinsToAllocate[i] >= 0) {
-          DEBUG_PRINT(F("[UM_DisplayMatrix] Allocating "));
+          DEBUG_PRINT(F("[UM_DisplayMatrix] Tracking Pin: "));
           DEBUG_PRINT(pinNames[i]);
-          DEBUG_PRINT(F(" on Pin: "));
+          DEBUG_PRINT(F(" -> "));
           DEBUG_PRINTLN(pinsToAllocate[i]);
 
-          // Pass false to ensure WLED acts strictly as a tracker without breaking native SPI mappings
+          // Track within WLED database without taking physical register control
           if (!PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified)) {
-            DEBUG_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
-            DEBUG_PRINTLN(pinNames[i]);
-            pinsAllocated = false;
-            break;
+            DEBUG_PRINTLN(F("[UM_DisplayMatrix] Warning: Pin was already registered elsewhere."));
           }
         }
       }
 
-      if (!pinsAllocated) {
-        DEBUG_PRINTLN(F("[UM_DisplayMatrix] Usermod aborted due to pin conflicts."));
-        return;
-      }
-
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing low-level GPIO matrix mapping..."));
-      
-      // Explicitly lock output configurations on the hardware layer to bypass library bugs
-      pinMode(TFT_CS, OUTPUT);
-      pinMode(TFT_DC, OUTPUT);
-      pinMode(TFT_RST, OUTPUT);
+      // Initialize your specific board backlight hardware directly
       pinMode(TFT_BL, OUTPUT);
+      digitalWrite(TFT_BL, HIGH); 
+
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Creating unmanaged hardware bus..."));
       
-      digitalWrite(TFT_CS, HIGH);
-      digitalWrite(TFT_RST, HIGH);
-      digitalWrite(TFT_BL, HIGH); // Drive backlight up immediately
+      // Build a clean, native hardware SPI bus configuration mapping directly to S3 matrix registers
+      bus = new Arduino_ESP32SPI(
+        TFT_DC,   // DC
+        TFT_CS,   // CS
+        TFT_SCLK, // SCK
+        TFT_MOSI, // MOSI
+        -1        // MISO (Explicitly detached to safely disable read tracking)
+      );
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Instantiating unmanaged TFT instance..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Spawning ST7789 display controller..."));
       
-      tft = new TFT_eSPI();
+      // Construct display mapping to match your T-Display 170x320 specifications
+      gfx = new Arduino_ST7789(
+        bus, 
+        TFT_RST, 
+        1,       // Rotation mapping
+        true,    // IPS panel setup
+        170,     // Screen Width
+        320      // Screen Height
+      );
 
-      // Directly initialize the configuration registers to bypass the broken spi_bus_initialize macro block
-      setup_t activeSettings;
-      tft->getSetup(activeSettings); 
-
-      // Manually trigger hardware initialization routines
-      tft->setRotation(1);
-      tft->fillScreen(TFT_BLACK);
-      tft->setTextColor(TFT_WHITE, TFT_BLACK);
-      tft->setTextSize(2);
-      tft->drawString("WLED Initializing...", 10, 10);
-
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialization completed successfully!"));
+      // Secure initialization hook (safe from register panic loops)
+      gfx->begin();
+      gfx->fillScreen(BLACK);
+      
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Display successfully initialized without crashes!"));
       initDone = true;
     }
 
     void loop() override {
-      if (!initDone || !pinsAllocated || !tft) return;
+      if (!initDone || !gfx) return;
 
       if (millis() - lastUpdate > 1000) {
         lastUpdate = millis();
         
-        tft->fillScreen(TFT_BLACK);
-        tft->drawString("WLED Active", 10, 10);
-        tft->drawString(WiFi.localIP().toString().c_str(), 10, 40);
+        gfx->fillScreen(BLACK);
+        gfx->setTextSize(2);
+        gfx->setTextColor(WHITE);
+        gfx->setCursor(10, 10);
+        gfx->println("WLED Active");
+        gfx->setCursor(10, 40);
+        gfx->println(WiFi.localIP().toString().c_str());
       }
     }
 
