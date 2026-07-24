@@ -6,24 +6,24 @@
 class LcdTfteSpiEngine {
   private:
     TFT_eSPI tft = TFT_eSPI();
-    uint16_t blocksW = 0;
-    uint16_t blocksH = 0;
-    uint16_t blockWidth = 1;
-    uint16_t blockHeight = 1;
+    uint16_t blocksW = 0, blocksH = 0;
+    uint16_t blockWidth = 1, blockHeight = 1;
+    bool isInit = false;
 
   public:
     void init() {
       tft.init();
       tft.setRotation(1);
       tft.fillScreen(TFT_BLACK);
+      isInit = true;
     }
 
     void clear() {
-      tft.fillScreen(TFT_BLACK);
+      if (isInit) tft.fillScreen(TFT_BLACK);
     }
 
     void drawFrame(WS2812FX& strip) {
-      if (!strip.isMatrix) return;
+      if (!isInit || !strip.isMatrix) return;
       
       Segment& seg = strip.getSegment(0);
       if (seg.width() != blocksW || seg.height() != blocksH) {
