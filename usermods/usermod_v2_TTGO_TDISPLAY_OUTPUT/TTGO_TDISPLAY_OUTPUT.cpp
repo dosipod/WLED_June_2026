@@ -46,15 +46,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t canvasW = 0;
     uint16_t canvasH = 0;
     
-    // Integer scaling fraction arrays to eliminate floating-point divisions
-    uint32_t scaleX_fp = 1;
-    uint32_t scaleY_fp = 1;
+    // Fixed-point scaling increments (Shifted by 16 bits)
+    uint32_t stepX_fp = 0;
+    uint32_t stepY_fp = 0;
     
     bool initDone = false;
     bool pinsAllocated = false;
     bool lastPowerState = true;
     
-    // Dynamic scanline array configuration tracking display sizes
     uint16_t* scanlineBuffer = nullptr;
 
     bool checkSettings() {
@@ -72,9 +71,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        // Fast fixed-point fraction scaling math (Shifted left by 16 bits)
-        scaleX_fp = ((uint32_t)canvasW << 16) / blocksW;
-        scaleY_fp = ((uint32_t)canvasH << 16) / blocksH;
+        // Calculate the precise matrix-to-canvas coordinate steps inside the configuration check
+        stepX_fp = ((uint32_t)blocksW << 16) / canvasW;
+        stepY_fp = ((uint32_t)blocksH << 16) / canvasH;
         
         if (scanlineBuffer) delete[] scanlineBuffer;
         scanlineBuffer = new uint16_t[canvasW];
@@ -102,16 +101,15 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // INI BUILD FLAGS MAPPING CORE:
-      // Dynamically inherits width, height, and display configuration values from your environment ini
+      // Inherits parameters directly from your platformio.ini target setup variables
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
-        1,       // Rotation mapping
-        true,    // IPS panel setup flag
+        1,         // Landscape orientation mapping
+        true,      // IPS mode active
         TFT_WIDTH, 
         TFT_HEIGHT,
-        35,      // Standard hardware window offset tracking
+        35,        // Offset settings matching the panel specifications
         0,
         35,
         0
@@ -129,18 +127,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
       
+      uint32_t accumY_fp = 0;
+
       for (uint16_t screenY = 0; screenY < canvasH; screenY++) {
-        // Fast fixed-point translation to find virtual Y coordinates without float math
-        uint16_t virtualY = ((uint32_t)screenY << 16) / scaleY_fp;
+        // Derive virtual matrix row index purely through bit-shifting addition increments
+        uint16_t virtualY = accumY_fp >> 16;
         if (virtualY >= blocksH) virtualY = blocksH - 1;
+        accumY_fp += stepY_fp;
         
         uint16_t lastVirtualX = 9999;
         uint16_t cachedColor16 = 0;
+        uint32_t accumX_fp = 0;
 
         for (uint16_t screenX = 0; screenX < canvasW; screenX++) {
-          // Fast fixed-point translation to find virtual X coordinates without float math
-          uint16_t virtualX = ((uint32_t)screenX << 16) / scaleX_fp;
+          uint16_t virtualX = accumX_fp >> 16;
           if (virtualX >= blocksW) virtualX = blocksW - 1;
+          accumX_fp += stepX_fp;
           
           if (virtualX != lastVirtualX) {
             lastVirtualX = virtualX;
