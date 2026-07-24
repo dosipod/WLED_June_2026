@@ -1,9 +1,10 @@
 #include "wled.h"
 #include <TFT_eSPI.h>
+#include <SPI.h> // Include standard SPI library to secure the bus matrix
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    TFT_eSPI* tft = nullptr; // Switch to heap pointer to control instantiation timing
+    TFT_eSPI* tft = nullptr; 
     unsigned long lastUpdate = 0;
     bool initDone = false;
     bool pinsAllocated = false;
@@ -24,7 +25,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           DEBUG_PRINT(F(" on Pin: "));
           DEBUG_PRINTLN(pinsToAllocate[i]);
 
-          // Pass FALSE for the second argument to prevent WLED from overwriting IO registers
           if (!PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified)) {
             DEBUG_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
             DEBUG_PRINTLN(pinNames[i]);
@@ -39,9 +39,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         return;
       }
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] All pins allocated safely. Initializing TFT on Heap..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Pre-initializing SPI bus to prevent S3 matrix panic..."));
+      
+      // Force a safe hardware pin matrix configuration before TFT_eSPI touches it.
+      // We pass -1 for MISO to explicitly tell the SPI HAL layer it is unused.
+      SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS); 
 
-      // Safely instantiate now that core registers are ready
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing TFT on Heap..."));
+
       tft = new TFT_eSPI();
       tft->init();
       tft->setRotation(1);
