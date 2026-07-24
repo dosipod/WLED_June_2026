@@ -1,4 +1,40 @@
 #include "wled.h"
+
+// 1. Cleanly isolate color macro conflicts before loading the GFX engine
+#ifdef BLACK
+  #undef BLACK
+#endif
+#ifdef BLUE
+  #undef BLUE
+#endif
+#ifdef GREEN
+  #undef GREEN
+#endif
+#ifdef RED
+  #undef RED
+#endif
+#ifdef WHITE
+  #undef WHITE
+#endif
+#ifdef YELLOW
+  #undef YELLOW
+#endif
+#ifdef CYAN
+  #undef CYAN
+#endif
+#ifdef MAGENTA
+  #undef MAGENTA
+#endif
+#ifdef PURPLE
+  #undef PURPLE
+#endif
+#ifdef ORANGE
+  #undef ORANGE
+#endif
+#ifdef DARKGREY
+  #undef DARKGREY
+#endif
+
 #include <Arduino_GFX_Library.h>
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
@@ -8,21 +44,18 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     unsigned long lastUpdate = 0;
     bool initDone = false;
     bool pinsAllocated = false;
+    bool lastPowerState = true;
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting setup via native GFX..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting clean setup..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
-      const char* pinNames[]  = {"MOSI", "SCLK", "CS", "DC", "RST", "BL"};
-      
       pinsAllocated = true;
 
       for (uint8_t i = 0; i < 6; i++) {
         if (pinsToAllocate[i] >= 0) {
-          if (!PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified)) {
-            DEBUG_PRINTLN(F("[UM_DisplayMatrix] Warning: Pin conflict bypassed."));
-          }
+          PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
         }
       }
 
@@ -31,62 +64,72 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Spawning ST7789 display controller..."));
-      
-      // Adjusted configuration: Using explicit 170x320 panel setup with row/col offsets
-      // If it still stretches or shows garbage, we will try the 135x240 variant.
+      // 2. Corrected Dimensions: Explicitly targeting standard 135x240 S3 panel offsets
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
-        1,       // Rotation (Landscape)
-        true,    // IPS Panel mode flag
-        170,     // Screen Width
-        320,     // Screen Height
-        35,      // Col offset (fixes the garbage edge lines on typical S3 T-Displays)
-        0        // Row offset
+        1,     // Landscape
+        true,  // IPS
+        135,   // True Screen Width
+        240,   // True Screen Height
+        52,    // Accurate X offset for 135x240 displays
+        40     // Accurate Y offset for 135x240 displays
       );
 
       gfx->begin();
-      gfx->fillScreen(BLACK);
+      gfx->fillScreen(RGB565_BLACK); // Explicit safe 16-bit call
       
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized cleanly!"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Setup Complete. No macro warnings."));
       initDone = true;
     }
 
-    // This method is called by WLED every time a frame is rendered to the LEDs
+    // 3. Frame Update: Render live effects straight to the panel
     void handleOverlayDraw() override {
-      if (!initDone || !gfx) return;
+      if (!initDone || !gfx || !lastPowerState) return;
 
-      // --- LIVE MATRIX RENDERING CORE ---
-      // This loops through WLED's virtual strip pixel buffer and pushes colors to the screen
       uint16_t totalPixels = strip.getLengthTotal();
+      if (totalPixels == 0) return;
+
+      // Start raw data frame burst to draw pixel streams instantly
+      gfx->startWrite();
       
-      // Optimization: Scale or map your strip length to the screen boundaries
-      // Adjust this loop depending on how your old usermod mapped individual pixel indexes to X/Y coordinates
       for (uint16_t i = 0; i < totalPixels; i++) {
         uint32_t c = strip.getPixelColor(i);
-        uint8_t r = R(c);
-        uint8_t g = G(c);
-        uint8_t b = B(c);
         
-        // Convert to 16-bit color format (RGB565) required by the display
+        // Use native WLED bit-shifting wrappers safely
+        uint8_t r = (c >> 16) & 0xFF;
+        uint8_t g = (c >> 8)  & 0xFF;
+        uint8_t b = c         & 0xFF;
+        
         uint16_t color16 = gfx->color565(r, g, b);
         
-        // Example Mapping: Simple horizontal strip line layout
-        // Swap this with your original 2D matrix transformation code if you have a grid layout
-        gfx->drawPixel(i % 320, i / 320, color16);
+        // Automatic layout distribution mapping directly into 240 pixel limits
+        gfx->writePixel(i % 240, i / 240, color16);
       }
+      
+      gfx->endWrite();
     }
 
     void loop() override {
       if (!initDone || !gfx) return;
 
-      // Keep light metadata on top of the matrix layer if desired (e.g., every 5 seconds)
-      if (millis() - lastUpdate > 5000) {
+      // 4. UI Master Power Binding: Sync display backlight to the WLED power button
+      bool currentPowerState = (bri > 0);
+      if (currentPowerState != lastPowerState) {
+        lastPowerState = currentPowerState;
+        digitalWrite(TFT_BL, lastPowerState ? HIGH : LOW);
+        if (!lastPowerState) {
+          gfx->fillScreen(RGB565_BLACK);
+        }
+      }
+
+      if (!lastPowerState) return;
+
+      // Draw active IP over the top layer every 4 seconds
+      if (millis() - lastUpdate > 4000) {
         lastUpdate = millis();
-        
         gfx->setTextSize(2);
-        gfx->setTextColor(WHITE);
+        gfx->setTextColor(RGB565_WHITE, RGB565_BLACK);
         gfx->setCursor(10, 10);
         gfx->println(WiFi.localIP().toString().c_str());
       }
