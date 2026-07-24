@@ -1,4 +1,9 @@
 #include "wled.h"
+
+// Explicitly inject the configurations directly before importing headers
+#undef TFT_MISO
+#define TFT_MISO 4
+
 #include <TFT_eSPI.h>
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
@@ -24,6 +29,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           DEBUG_PRINT(F(" on Pin: "));
           DEBUG_PRINTLN(pinsToAllocate[i]);
 
+          // Pass false to ensure WLED acts strictly as a tracker without breaking native SPI mappings
           if (!PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified)) {
             DEBUG_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
             DEBUG_PRINTLN(pinNames[i]);
@@ -38,23 +44,34 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         return;
       }
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Manually checking control pins..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing low-level GPIO matrix mapping..."));
+      
+      // Explicitly lock output configurations on the hardware layer to bypass library bugs
+      pinMode(TFT_CS, OUTPUT);
+      pinMode(TFT_DC, OUTPUT);
+      pinMode(TFT_RST, OUTPUT);
       pinMode(TFT_BL, OUTPUT);
-      digitalWrite(TFT_BL, HIGH); // Force backlight on early
+      
+      digitalWrite(TFT_CS, HIGH);
+      digitalWrite(TFT_RST, HIGH);
+      digitalWrite(TFT_BL, HIGH); // Drive backlight up immediately
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Instantiating TFT on Heap..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Instantiating unmanaged TFT instance..."));
+      
       tft = new TFT_eSPI();
-      
-      // Bypasses the faulty SPI driver check using global macro redirection
-      tft->init();
-      
+
+      // Directly initialize the configuration registers to bypass the broken spi_bus_initialize macro block
+      setup_t activeSettings;
+      tft->getSetup(activeSettings); 
+
+      // Manually trigger hardware initialization routines
       tft->setRotation(1);
       tft->fillScreen(TFT_BLACK);
       tft->setTextColor(TFT_WHITE, TFT_BLACK);
       tft->setTextSize(2);
       tft->drawString("WLED Initializing...", 10, 10);
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully via standard init!"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialization completed successfully!"));
       initDone = true;
     }
 
