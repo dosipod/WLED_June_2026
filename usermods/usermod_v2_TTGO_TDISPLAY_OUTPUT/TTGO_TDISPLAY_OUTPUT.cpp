@@ -1,5 +1,6 @@
 #include "wled.h"
 
+// Clear 32-bit naming conflicts to keep compilation fast and warning-free
 #ifdef BLACK
   #undef BLACK
 #endif
@@ -40,14 +41,50 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
     Arduino_DataBus* bus = nullptr;
     Arduino_GFX* gfx = nullptr;
-    unsigned long lastUpdate = 0;
+    
+    // Caching layout matrices to remove loop-level division hooks
+    uint16_t blocksW = 0;
+    uint16_t blocksH = 0;
+    uint16_t canvasW = 0;
+    uint16_t canvasH = 0;
+    
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
+    
     bool initDone = false;
     bool pinsAllocated = false;
     bool lastPowerState = true;
+    
+    // High-speed scanline cache buffer to hold 320 raw 16-bit RGB pixels
+    uint16_t scanlineBuffer[320];
+
+    bool checkSettings() {
+      if (!strip.isMatrix) return false;
+      
+      uint16_t currentW = Segment::maxWidth;
+      uint16_t currentH = Segment::maxHeight;
+      
+      if (currentW == 0 || currentH == 0) return false;
+      
+      // Only recalculate scales if the layout configuration modifications update
+      if (currentW != blocksW || currentH != blocksH) {
+        blocksW = currentW;
+        blocksH = currentH;
+        
+        canvasW = gfx->width();
+        canvasH = gfx->height();
+        
+        scaleX = (float)canvasW / (float)blocksW;
+        scaleY = (float)canvasH / (float)blocksH;
+        
+        gfx->fillScreen(RGB565_BLACK);
+      }
+      return true;
+    }
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting clean setup..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing high-FPS display pipelines..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -63,65 +100,54 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // OFFICIAL 1.9" HMI HARDWARE DECLARATION MAP:
-      // Uses the unrotated 170x320 footprint with double layout offsets (35,0,35,0)
-      // to remove the white bars across both portrait and landscape orientation tables.
       gfx = new Arduino_ST7789(
-        bus, 
-        TFT_RST, 
-        1,         // Landscape orientation layout
-        true,      // IPS mode active
-        170,       // Native width
-        320,       // Native height
-        35,        // Col offset 1
-        0,         // Row offset 1
-        35,        // Col offset 2
-        0          // Row offset 2
+        bus, TFT_RST, 1, true, 
+        170, 320, 35, 0, 35, 0
       );
 
       gfx->begin();
       gfx->fillScreen(RGB565_BLACK); 
       
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Setup Complete. Canvas cleared."));
       initDone = true;
     }
 
     void handleOverlayDraw() override {
       if (!initDone || !gfx || !lastPowerState) return;
-
-      uint16_t matrixWidth  = strip.isMatrix ? Segment::maxWidth  : 1;
-      uint16_t matrixHeight = strip.isMatrix ? Segment::maxHeight : 1;
-
-      if (matrixWidth == 0 || matrixHeight == 0) return;
+      if (!checkSettings()) return;
 
       Segment& seg = strip.getSegment(0);
 
+      // Start hardware stream operation
       gfx->startWrite();
       
-      float displayWidth  = (float)gfx->width();
-      float displayHeight = (float)gfx->height();
+      // Loop over every physical display line (170 rows)
+      for (uint16_t screenY = 0; screenY < canvasH; screenY++) {
+        
+        // Reverse-map physical display Y coordinate to virtual matrix coordinate
+        uint16_t virtualY = (uint16_t)((float)screenY / scaleY);
+        if (virtualY >= blocksH) virtualY = blocksH - 1;
+        
+        uint16_t lastVirtualX = 9999;
+        uint16_t cachedColor16 = 0;
 
-      float scaleX = displayWidth / (float)matrixWidth;
-      float scaleY = displayHeight / (float)matrixHeight;
-      
-      for (uint16_t y = 0; y < matrixHeight; y++) {
-        for (uint16_t x = 0; x < matrixWidth; x++) {
+        // Populate the rapid scanline array buffer for the entire physical display row (320 cols)
+        for (uint16_t screenX = 0; screenX < canvasW; screenX++) {
           
-          uint32_t c = seg.getPixelColorXY(x, y);
+          uint16_t virtualX = (uint16_t)((float)screenX / scaleX);
+          if (virtualX >= blocksW) virtualX = blocksW - 1;
           
-          uint8_t r = (c >> 16) & 0xFF;
-          uint8_t g = (c >> 8)  & 0xFF;
-          uint8_t b = c         & 0xFF;
+          // Optimization: Only grab and convert color parameters if the virtual coordinate changed
+          if (virtualX != lastVirtualX) {
+            lastVirtualX = virtualX;
+            uint32_t c = seg.getPixelColorXY(virtualX, virtualY);
+            cachedColor16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+          }
           
-          uint16_t color16 = gfx->color565(r, g, b);
-          
-          uint16_t px = (uint16_t)(x * scaleX);
-          uint16_t py = (uint16_t)(y * scaleY);
-          uint16_t pw = (uint16_t)((x + 1) * scaleX) - px;
-          uint16_t ph = (uint16_t)((y + 1) * scaleY) - py;
-
-          gfx->writeFillRect(px, py, pw, ph, color16);
+          scanlineBuffer[screenX] = cachedColor16;
         }
+        
+        // Push the entire populated row to the display module at hardware speeds
+        gfx->draw16bitRGBBitmap(0, screenY, scanlineBuffer, canvasW, 1);
       }
       
       gfx->endWrite();
@@ -137,16 +163,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (!lastPowerState) {
           gfx->fillScreen(RGB565_BLACK);
         }
-      }
-
-      if (!lastPowerState) return;
-
-      if (millis() - lastUpdate > 8000) {
-        lastUpdate = millis();
-        gfx->setTextSize(2);
-        gfx->setTextColor(RGB565_WHITE, RGB565_BLACK);
-        gfx->setCursor(15, 15);
-        gfx->println(WiFi.localIP().toString().c_str());
       }
     }
 
