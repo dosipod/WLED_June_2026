@@ -1,4 +1,11 @@
 #include "wled.h"
+
+// Hard-override the configuration macros before loading the TFT library header
+#ifdef TFT_MISO
+  #undef TFT_MISO
+#endif
+#define TFT_MISO 4 // Force a valid unused dummy pin directly to break the MISO == MOSI loop
+
 #include <TFT_eSPI.h>
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
@@ -45,7 +52,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       DEBUG_PRINTLN(F("[UM_DisplayMatrix] Instantiating TFT on Heap..."));
       tft = new TFT_eSPI();
       
-      // Standard initialization wrapper (safe now that MISO != MOSI)
+      // Bypasses the faulty SPI driver check using macro redirection
       tft->init();
       
       tft->setRotation(1);
