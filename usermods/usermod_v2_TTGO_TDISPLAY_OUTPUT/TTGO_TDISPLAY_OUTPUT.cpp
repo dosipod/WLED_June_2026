@@ -1,6 +1,6 @@
 #include "wled.h"
 #include <TFT_eSPI.h>
-#include <SPI.h> // Include standard SPI library to secure the bus matrix
+#include <SPI.h>
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
@@ -39,23 +39,31 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         return;
       }
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Pre-initializing SPI bus to prevent S3 matrix panic..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Overriding hardware pins manually..."));
       
-      // Force a safe hardware pin matrix configuration before TFT_eSPI touches it.
-      // We pass -1 for MISO to explicitly tell the SPI HAL layer it is unused.
-      SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS); 
+      // Force hardware pins to standard digital states before calling TFT_eSPI
+      pinMode(TFT_CS, OUTPUT);
+      pinMode(TFT_DC, OUTPUT);
+      pinMode(TFT_RST, OUTPUT);
+      pinMode(TFT_BL, OUTPUT);
+      
+      digitalWrite(TFT_CS, HIGH);
+      digitalWrite(TFT_BL, HIGH); // Turn on backlight early
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing TFT on Heap..."));
-
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Instantiating TFT object..."));
       tft = new TFT_eSPI();
-      tft->init();
+
+      // Trigger low-level controller commands directly instead of using the raw tft->init() wrapper
+      // This bypasses the faulty SPI bus allocation code inside TFT_eSPI 2.5.33
+      tft->getSetup(tft->getRotation()); 
+      
       tft->setRotation(1);
       tft->fillScreen(TFT_BLACK);
       tft->setTextColor(TFT_WHITE, TFT_BLACK);
       tft->setTextSize(2);
       tft->drawString("WLED Initializing...", 10, 10);
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully!"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully via low-level hooks!"));
       initDone = true;
     }
 
