@@ -1,5 +1,6 @@
 #include "wled.h"
 
+// Macro namespace cleanup to safeguard compiling cross-dependencies
 #ifdef BLACK
   #undef BLACK
 #endif
@@ -15,75 +16,36 @@
 #ifdef WHITE
   #undef WHITE
 #endif
-#ifdef YELLOW
-  #undef YELLOW
-#endif
-#ifdef CYAN
-  #undef CYAN
-#endif
-#ifdef MAGENTA
-  #undef MAGENTA
-#endif
-#ifdef PURPLE
-  #undef PURPLE
-#endif
-#ifdef ORANGE
-  #undef ORANGE
-#endif
-#ifdef DARKGREY
-  #undef DARKGREY
-#endif
 
-#include <Arduino_GFX_Library.h>
+// CLEAN ARCHITECTURE GUARD BLOCKS:
+// Dynamically checks environment build flags before attempting header loads.
+// This allows other environments to build smoothly without hardcoding header errors.
+#ifdef USER_SETUP_LOADED
+  #include "lcd_as_output_espi_engine.h"
+#else
+  #include "lcd_as_output_gfx_engine.h"
+#endif
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    Arduino_DataBus* bus = nullptr;
-    Arduino_GFX* gfx = nullptr;
-    
-    uint16_t blocksW = 0;
-    uint16_t blocksH = 0;
-    uint16_t canvasW = 0;
-    uint16_t canvasH = 0;
-    
-    float scaleX = 1.0f;
-    float scaleY = 1.0f;
+    #ifdef USER_SETUP_LOADED
+      LcdTfteSpiEngine engine;
+      const int activeDriverMode = 0; // Fixed to TFT_eSPI mode natively
+    #else
+      LcdGfxEngine engine;
+      const int activeDriverMode = 1; // Fixed to Arduino_GFX mode natively
+    #endif
     
     bool initDone = false;
     bool pinsAllocated = false;
     bool lastPowerState = true;
 
-    bool checkSettings() {
-      if (!strip.isMatrix) return false;
-      
-      Segment& seg = strip.getSegment(0);
-      uint16_t currentW = seg.width();
-      uint16_t currentH = seg.height();
-      
-      if (currentW == 0 || currentH == 0) return false;
-      
-      if (currentW != blocksW || currentH != blocksH) {
-        blocksW = currentW;
-        blocksH = currentH;
-        
-        canvasW = gfx->width();
-        canvasH = gfx->height();
-        
-        scaleX = (float)canvasW / (float)blocksW;
-        scaleY = (float)canvasH / (float)blocksH;
-        
-        gfx->fillScreen(RGB565_BLACK);
-      }
-      return true;
-    }
-
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting responsive layout matrix engine..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Launching environment-aware output usermod..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
-
       for (uint8_t i = 0; i < 6; i++) {
         if (pinsToAllocate[i] >= 0) {
           PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
@@ -91,56 +53,31 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
 
       pinMode(TFT_BL, OUTPUT);
-      digitalWrite(TFT_BL, HIGH); 
+      digitalWrite(TFT_BL, HIGH);
 
-      bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
+      // Initialize the precise engine instance active in your current build target
+      #ifdef USER_SETUP_LOADED
+        engine.init();
+      #else
+        engine.init(TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_WIDTH, TFT_HEIGHT);
+      #endif
 
-      gfx = new Arduino_ST7789(
-        bus, TFT_RST, 1, true, 
-        TFT_WIDTH, TFT_HEIGHT,
-        35, 0, 35, 0
-      );
-
-      gfx->begin();
-      gfx->fillScreen(RGB565_BLACK); 
       initDone = true;
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !gfx || !lastPowerState) return;
-      if (!checkSettings()) return;
-
-      Segment& seg = strip.getSegment(0);
-      gfx->startWrite();
-
-      for (uint16_t y = 0; y < blocksH; y++) {
-        uint16_t py = (uint16_t)(y * scaleY);
-        uint16_t ph = (uint16_t)((y + 1) * scaleY) - py;
-        
-        for (uint16_t x = 0; x < blocksW; x++) {
-          // Fix: Read from sequential index to respect layout manipulations perfectly
-          uint32_t c = seg.getPixelColor(x + (y * blocksW));
-          
-          uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          uint16_t px = (uint16_t)(x * scaleX);
-          uint16_t pw = (uint16_t)((x + 1) * scaleX) - px;
-          
-          gfx->writeFillRect(px, py, pw, ph, color16);
-        }
-      }
-      
-      gfx->endWrite();
+      if (!initDone || !lastPowerState) return;
+      engine.drawFrame(strip);
     }
 
     void loop() override {
-      if (!initDone || !gfx) return;
-
+      if (!initDone) return;
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
         digitalWrite(TFT_BL, lastPowerState ? HIGH : LOW);
         if (!lastPowerState) {
-          gfx->fillScreen(RGB565_BLACK);
+          engine.clear();
         }
       }
     }
@@ -148,6 +85,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void addToJsonState(JsonObject& root) override {
       JsonObject top = root.createNestedObject("TTGO_Display");
       top["active"] = initDone;
+      top["engine_mode"] = activeDriverMode;
     }
 
     uint16_t getId() override {
