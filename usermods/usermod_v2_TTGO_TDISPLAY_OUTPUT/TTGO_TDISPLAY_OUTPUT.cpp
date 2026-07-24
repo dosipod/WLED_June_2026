@@ -9,7 +9,167 @@
 #ifdef GREEN
   #undef GREEN
 #endif
+#ifdef RED#include "wled.h"
+
+#ifdef BLACK
+  #undef BLACK
+#endif
+#ifdef BLUE
+  #undef BLUE
+#endif
+#ifdef GREEN
+  #undef GREEN
+#endif
 #ifdef RED
+  #undef RED
+#endif
+#ifdef WHITE
+  #undef WHITE
+#endif
+#ifdef YELLOW
+  #undef YELLOW
+#endif
+#ifdef CYAN
+  #undef CYAN
+#endif
+#ifdef MAGENTA
+  #undef MAGENTA
+#endif
+#ifdef PURPLE
+  #undef PURPLE
+#endif
+#ifdef ORANGE
+  #undef ORANGE
+#endif
+#ifdef DARKGREY
+  #undef DARKGREY
+#endif
+
+#include <Arduino_GFX_Library.h>
+
+class TTGO_TDISPLAY_OUTPUT : public Usermod {
+  private:
+    Arduino_DataBus* bus = nullptr;
+    Arduino_GFX* gfx = nullptr;
+    
+    uint16_t blocksW = 0;
+    uint16_t blocksH = 0;
+    uint16_t canvasW = 0;
+    uint16_t canvasH = 0;
+    
+    uint32_t stepX_fp = 0;
+    uint32_t stepY_fp = 0;
+    
+    bool initDone = false;
+    bool pinsAllocated = false;
+    bool lastPowerState = true;
+
+    bool checkSettings() {
+      if (!strip.isMatrix) return false;
+      
+      uint16_t currentW = Segment::maxWidth;
+      uint16_t currentH = Segment::maxHeight;
+      
+      if (currentW == 0 || currentH == 0) return false;
+      
+      if (currentW != blocksW || currentH != blocksH) {
+        blocksW = currentW;
+        blocksH = currentH;
+        
+        canvasW = gfx->width();
+        canvasH = gfx->height();
+        
+        stepX_fp = ((uint32_t)blocksW << 16) / canvasW;
+        stepY_fp = ((uint32_t)blocksH << 16) / canvasH;
+        
+        gfx->fillScreen(RGB565_BLACK);
+      }
+      return true;
+    }
+
+  public:
+    void setup() override {
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing clean settings..."));
+
+      int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
+      pinsAllocated = true;
+
+      for (uint8_t i = 0; i < 6; i++) {
+        if (pinsToAllocate[i] >= 0) {
+          PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
+        }
+      }
+
+      pinMode(TFT_BL, OUTPUT);
+      digitalWrite(TFT_BL, HIGH); 
+
+      bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
+
+      gfx = new Arduino_ST7789(
+        bus, TFT_RST, 1, true, 
+        TFT_WIDTH, TFT_HEIGHT,
+        35, 0, 35, 0
+      );
+
+      gfx->begin();
+      gfx->fillScreen(RGB565_BLACK); 
+      initDone = true;
+    }
+
+    void handleOverlayDraw() override {
+      if (!initDone || !gfx || !lastPowerState) return;
+      if (!checkSettings()) return;
+
+      Segment& seg = strip.getSegment(0);
+      gfx->startWrite();
+      
+      // Compute scaling steps using pure integer multipliers
+      uint16_t blockWidth  = canvasW / blocksW;
+      uint16_t blockHeight = canvasH / blocksH;
+      if (blockWidth == 0)  blockWidth  = 1;
+      if (blockHeight == 0) blockHeight = 1;
+
+      for (uint16_t y = 0; y < blocksH; y++) {
+        uint16_t py = y * blockHeight;
+        for (uint16_t x = 0; x < blocksW; x++) {
+          
+          uint32_t c = seg.getPixelColorXY(x, y);
+          uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+          
+          uint16_t px = x * blockWidth;
+          gfx->writeFillRect(px, py, blockWidth, blockHeight, color16);
+        }
+      }
+      
+      gfx->endWrite();
+    }
+
+    void loop() override {
+      if (!initDone || !gfx) return;
+
+      bool currentPowerState = (bri > 0);
+      if (currentPowerState != lastPowerState) {
+        lastPowerState = currentPowerState;
+        digitalWrite(TFT_BL, lastPowerState ? HIGH : LOW);
+        if (!lastPowerState) {
+          gfx->fillScreen(RGB565_BLACK);
+        }
+      }
+    }
+
+    void addToJsonState(JsonObject& root) override {
+      JsonObject top = root.createNestedObject("TTGO_Display");
+      top["active"] = initDone;
+    }
+
+    uint16_t getId() override {
+      return USERMOD_ID_TTGO_TDISPLAY_OUTPUT;
+    }
+};
+
+static TTGO_TDISPLAY_OUTPUT ttgo_display_mod;
+REGISTER_USERMOD(ttgo_display_mod);
+
   #undef RED
 #endif
 #ifdef WHITE
