@@ -63,18 +63,15 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // UNMANAGED DRIVER INJECTION:
-      // Arduino_ST7789_RPi removes library macro transformations.
-      // Passing 170x320 with 0,0 forces the canvas to cleanly fill the physical bounds.
       gfx = new Arduino_ST7789_RPi(
         bus, 
         TFT_RST, 
-        1,     // Rotation: 1 (Landscape)
-        true,  // IPS Color Profile
-        170,   // Physical Width
-        320,   // Physical Height
-        0,     // Strict 0 Column Offset
-        0      // Strict 0 Row Offset
+        1,     
+        true,  
+        170,   
+        320,   
+        0,     
+        0      
       );
 
       gfx->begin();
