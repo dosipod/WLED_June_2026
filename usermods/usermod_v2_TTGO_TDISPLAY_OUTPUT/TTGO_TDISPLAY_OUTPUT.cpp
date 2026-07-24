@@ -1,6 +1,5 @@
 #include "wled.h"
 
-// Clear 32-bit naming conflicts to keep compilation fast and warning-free
 #ifdef BLACK
   #undef BLACK
 #endif
@@ -42,21 +41,21 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     Arduino_DataBus* bus = nullptr;
     Arduino_GFX* gfx = nullptr;
     
-    // Caching layout matrices to remove loop-level division hooks
     uint16_t blocksW = 0;
     uint16_t blocksH = 0;
     uint16_t canvasW = 0;
     uint16_t canvasH = 0;
     
-    float scaleX = 1.0f;
-    float scaleY = 1.0f;
+    // Integer scaling fraction arrays to eliminate floating-point divisions
+    uint32_t scaleX_fp = 1;
+    uint32_t scaleY_fp = 1;
     
     bool initDone = false;
     bool pinsAllocated = false;
     bool lastPowerState = true;
     
-    // High-speed scanline cache buffer to hold 320 raw 16-bit RGB pixels
-    uint16_t scanlineBuffer[320];
+    // Dynamic scanline array configuration tracking display sizes
+    uint16_t* scanlineBuffer = nullptr;
 
     bool checkSettings() {
       if (!strip.isMatrix) return false;
@@ -66,7 +65,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       if (currentW == 0 || currentH == 0) return false;
       
-      // Only recalculate scales if the layout configuration modifications update
       if (currentW != blocksW || currentH != blocksH) {
         blocksW = currentW;
         blocksH = currentH;
@@ -74,8 +72,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        scaleX = (float)canvasW / (float)blocksW;
-        scaleY = (float)canvasH / (float)blocksH;
+        // Fast fixed-point fraction scaling math (Shifted left by 16 bits)
+        scaleX_fp = ((uint32_t)canvasW << 16) / blocksW;
+        scaleY_fp = ((uint32_t)canvasH << 16) / blocksH;
+        
+        if (scanlineBuffer) delete[] scanlineBuffer;
+        scanlineBuffer = new uint16_t[canvasW];
         
         gfx->fillScreen(RGB565_BLACK);
       }
@@ -84,7 +86,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing high-FPS display pipelines..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing portable dynamic settings..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -100,43 +102,46 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
+      // INI BUILD FLAGS MAPPING CORE:
+      // Dynamically inherits width, height, and display configuration values from your environment ini
       gfx = new Arduino_ST7789(
-        bus, TFT_RST, 1, true, 
-        170, 320, 35, 0, 35, 0
+        bus, 
+        TFT_RST, 
+        1,       // Rotation mapping
+        true,    // IPS panel setup flag
+        TFT_WIDTH, 
+        TFT_HEIGHT,
+        35,      // Standard hardware window offset tracking
+        0,
+        35,
+        0
       );
 
       gfx->begin();
       gfx->fillScreen(RGB565_BLACK); 
-      
       initDone = true;
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !gfx || !lastPowerState) return;
+      if (!initDone || !gfx || !lastPowerState || !scanlineBuffer) return;
       if (!checkSettings()) return;
 
       Segment& seg = strip.getSegment(0);
-
-      // Start hardware stream operation
       gfx->startWrite();
       
-      // Loop over every physical display line (170 rows)
       for (uint16_t screenY = 0; screenY < canvasH; screenY++) {
-        
-        // Reverse-map physical display Y coordinate to virtual matrix coordinate
-        uint16_t virtualY = (uint16_t)((float)screenY / scaleY);
+        // Fast fixed-point translation to find virtual Y coordinates without float math
+        uint16_t virtualY = ((uint32_t)screenY << 16) / scaleY_fp;
         if (virtualY >= blocksH) virtualY = blocksH - 1;
         
         uint16_t lastVirtualX = 9999;
         uint16_t cachedColor16 = 0;
 
-        // Populate the rapid scanline array buffer for the entire physical display row (320 cols)
         for (uint16_t screenX = 0; screenX < canvasW; screenX++) {
-          
-          uint16_t virtualX = (uint16_t)((float)screenX / scaleX);
+          // Fast fixed-point translation to find virtual X coordinates without float math
+          uint16_t virtualX = ((uint32_t)screenX << 16) / scaleX_fp;
           if (virtualX >= blocksW) virtualX = blocksW - 1;
           
-          // Optimization: Only grab and convert color parameters if the virtual coordinate changed
           if (virtualX != lastVirtualX) {
             lastVirtualX = virtualX;
             uint32_t c = seg.getPixelColorXY(virtualX, virtualY);
@@ -146,7 +151,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           scanlineBuffer[screenX] = cachedColor16;
         }
         
-        // Push the entire populated row to the display module at hardware speeds
         gfx->draw16bitRGBBitmap(0, screenY, scanlineBuffer, canvasW, 1);
       }
       
@@ -173,6 +177,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     uint16_t getId() override {
       return USERMOD_ID_TTGO_TDISPLAY_OUTPUT;
+    }
+
+    ~TTGO_TDISPLAY_OUTPUT() {
+      if (scanlineBuffer) delete[] scanlineBuffer;
     }
 };
 
