@@ -16,7 +16,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       const char* pinNames[]  = {"MOSI", "SCLK", "CS", "DC", "RST", "BL"};
       
       pinsAllocated = true;
-      PinManager* pm = PinManager::instance();
 
       for (uint8_t i = 0; i < 6; i++) {
         if (pinsToAllocate[i] >= 0) {
@@ -25,7 +24,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           DEBUG_PRINT(F(" on Pin: "));
           DEBUG_PRINTLN(pinsToAllocate[i]);
 
-          if (!pm->allocatePin(pinsToAllocate[i], true, PinOwner::UM_Unspecified)) {
+          // Call allocatePin directly as a static method of PinManager
+          if (!PinManager::allocatePin(pinsToAllocate[i], true, PinOwner::UM_Unspecified)) {
             DEBUG_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
             DEBUG_PRINTLN(pinNames[i]);
             pinsAllocated = false;
@@ -70,7 +70,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     uint16_t getId() override {
-      // Matches the custom definition at line 233 of your const.h exactly
       return USERMOD_ID_TTGO_TDISPLAY_OUTPUT;
     }
 };
