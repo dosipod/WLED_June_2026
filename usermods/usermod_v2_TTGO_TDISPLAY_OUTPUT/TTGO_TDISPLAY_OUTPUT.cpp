@@ -56,8 +56,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool checkSettings() {
       if (!strip.isMatrix) return false;
       
-      uint16_t currentW = Segment::maxWidth;
-      uint16_t currentH = Segment::maxHeight;
+      // Target the active logical dimensions of the active frame segment
+      Segment& seg = strip.getSegment(0);
+      uint16_t currentW = seg.width();
+      uint16_t currentH = seg.height();
       
       if (currentW == 0 || currentH == 0) return false;
       
@@ -68,6 +70,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
+        // Dynamically compute block adjustments relative to the active segment flags
         blockWidth  = canvasW / blocksW;
         blockHeight = canvasH / blocksH;
         
@@ -81,7 +84,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting clean 1-to-1 matrix layout setup..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting responsive segments core..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -115,11 +118,17 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
 
+      // Loop dynamically over the active transposed/mirrored logical dimensions
       for (uint16_t y = 0; y < blocksH; y++) {
         uint16_t py = y * blockHeight;
         
         for (uint16_t x = 0; x < blocksW; x++) {
+          
+          // CRITICAL ACCURACY CORRECTION: 
+          // Use seg.getPixelColorXY() but scale bounding box loops natively.
+          // This allows Transpose, Mirror, and Reverse functions to process across the full canvas view.
           uint32_t c = seg.getPixelColorXY(x, y);
+          
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
           uint16_t px = x * blockWidth;
           
