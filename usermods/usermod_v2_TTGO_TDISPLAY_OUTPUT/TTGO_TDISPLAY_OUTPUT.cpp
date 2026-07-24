@@ -1,5 +1,5 @@
 #include "wled.h"
-#include <Arduino_GFX_Library.h> // Switch to stable GFX to fix the S3 boot loop panic
+#include <Arduino_GFX_Library.h>
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
@@ -25,45 +25,40 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           DEBUG_PRINT(F(" -> "));
           DEBUG_PRINTLN(pinsToAllocate[i]);
 
-          // Track within WLED database without taking physical register control
           if (!PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified)) {
-            DEBUG_PRINTLN(F("[UM_DisplayMatrix] Warning: Pin was already registered elsewhere."));
+            DEBUG_PRINTLN(F("[UM_DisplayMatrix] Warning: Pin tracking conflict bypassed."));
           }
         }
       }
 
-      // Initialize your specific board backlight hardware directly
       pinMode(TFT_BL, OUTPUT);
       digitalWrite(TFT_BL, HIGH); 
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Creating unmanaged hardware bus..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Creating hardware SPI bus mapping..."));
       
-      // Build a clean, native hardware SPI bus configuration mapping directly to S3 matrix registers
       bus = new Arduino_ESP32SPI(
         TFT_DC,   // DC
         TFT_CS,   // CS
         TFT_SCLK, // SCK
         TFT_MOSI, // MOSI
-        -1        // MISO (Explicitly detached to safely disable read tracking)
+        -1        // MISO
       );
 
       DEBUG_PRINTLN(F("[UM_DisplayMatrix] Spawning ST7789 display controller..."));
       
-      // Construct display mapping to match your T-Display 170x320 specifications
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
-        1,       // Rotation mapping
-        true,    // IPS panel setup
+        1,       // Rotation
+        true,    // IPS Panel mode flag
         170,     // Screen Width
         320      // Screen Height
       );
 
-      // Secure initialization hook (safe from register panic loops)
       gfx->begin();
       gfx->fillScreen(BLACK);
       
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Display successfully initialized without crashes!"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized cleanly without driver register panic loops!"));
       initDone = true;
     }
 
