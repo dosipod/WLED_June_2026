@@ -10,7 +10,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      USER_PRINTLN(F("[UM_DisplayMatrix] Starting setup..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting setup..."));
 
       // Array of configuration pins from platformio.ini
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
@@ -18,18 +18,21 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       pinsAllocated = true;
 
-      // Safe registration loop using native WLED pinManager mechanics
+      // Access PinManager using instance() method
+      PinManager* pm = PinManager::instance();
+
+      // Safe registration loop using native WLED PinManager mechanics
       for (uint8_t i = 0; i < 6; i++) {
         if (pinsToAllocate[i] >= 0) {
-          USER_PRINT(F("[UM_DisplayMatrix] Allocating "));
-          USER_PRINT(pinNames[i]);
-          USER_PRINT(F(" on Pin: "));
-          USER_PRINTLN(pinsToAllocate[i]);
+          DEBUG_PRINT(F("[UM_DisplayMatrix] Allocating "));
+          DEBUG_PRINT(pinNames[i]);
+          DEBUG_PRINT(F(" on Pin: "));
+          DEBUG_PRINTLN(pinsToAllocate[i]);
 
           // Use UM_Unspecified to ensure seamless compatibility without core changes
-          if (!pinManager.allocatePin(pinsToAllocate[i], true, PinOwner::UM_Unspecified)) {
-            USER_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
-            USER_PRINTLN(pinNames[i]);
+          if (!pm->allocatePin(pinsToAllocate[i], true, PinOwner::UM_Unspecified)) {
+            DEBUG_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
+            DEBUG_PRINTLN(pinNames[i]);
             pinsAllocated = false;
             break;
           }
@@ -37,11 +40,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
 
       if (!pinsAllocated) {
-        USER_PRINTLN(F("[UM_DisplayMatrix] Usermod aborted due to pin conflicts."));
+        DEBUG_PRINTLN(F("[UM_DisplayMatrix] Usermod aborted due to pin conflicts."));
         return;
       }
 
-      USER_PRINTLN(F("[UM_DisplayMatrix] All pins allocated successfully. Initializing TFT..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] All pins allocated successfully. Initializing TFT..."));
 
       // Initialize hardware display
       tft.init();
@@ -51,7 +54,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       tft.setTextSize(2);
       tft.drawString("WLED Initializing...", 10, 10);
 
-      USER_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully!"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully!"));
       initDone = true;
     }
 
@@ -75,7 +78,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     uint16_t getId() override {
-      return USERMOD_ID_TTGO_TDISPLAY;
+      // Use standard UNSPECIFIED macro to prevent missing ID errors
+      return USERMOD_ID_UNSPECIFIED;
     }
 };
 
