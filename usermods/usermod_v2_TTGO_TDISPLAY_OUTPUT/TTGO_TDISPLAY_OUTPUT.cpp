@@ -118,7 +118,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         uint16_t ph = (uint16_t)((y + 1) * scaleY) - py;
         
         for (uint16_t x = 0; x < blocksW; x++) {
-          uint32_t c = seg.getPixelColorXY(x, y);
+          // Fix: Read from sequential index to respect layout manipulations perfectly
+          uint32_t c = seg.getPixelColor(x + (y * blocksW));
           
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
           uint16_t px = (uint16_t)(x * scaleX);
