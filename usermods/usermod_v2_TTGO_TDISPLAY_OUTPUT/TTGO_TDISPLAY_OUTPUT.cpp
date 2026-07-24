@@ -46,20 +46,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t canvasW = 0;
     uint16_t canvasH = 0;
     
-    // Dynamic Downscale parameters bound to the WLED UI sliders
-    int sampleW = 53;  
-    int sampleH = 27;  
-    
     uint16_t blockWidth = 1;
     uint16_t blockHeight = 1;
     
     bool initDone = false;
     bool pinsAllocated = false;
     bool lastPowerState = true;
-
-    // Fixed sizes explicitly declared to resolve flexible member errors
-    const char SETTING_SAMPLE_W[13] = "Sample-Width";
-    const char SETTING_SAMPLE_H[14] = "Sample-Height";
 
     bool checkSettings() {
       if (!strip.isMatrix) return false;
@@ -69,11 +61,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       if (currentW == 0 || currentH == 0) return false;
       
-      if (sampleW < 4)   sampleW = 4;
-      if (sampleW > 320) sampleW = 320;
-      if (sampleH < 4)   sampleH = 4;
-      if (sampleH > 170) sampleH = 170;
-      
       if (currentW != blocksW || currentH != blocksH) {
         blocksW = currentW;
         blocksH = currentH;
@@ -81,8 +68,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        blockWidth  = canvasW / (uint16_t)sampleW;
-        blockHeight = canvasH / (uint16_t)sampleH;
+        blockWidth  = canvasW / blocksW;
+        blockHeight = canvasH / blocksH;
         
         if (blockWidth == 0)  blockWidth  = 1;
         if (blockHeight == 0) blockHeight = 1;
@@ -94,7 +81,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting Web-Configured Sub-Sampler..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Starting clean 1-to-1 matrix layout setup..."));
 
       int8_t pinsToAllocate[] = {TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST, TFT_BL};
       pinsAllocated = true;
@@ -128,25 +115,15 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       Segment& seg = strip.getSegment(0);
       gfx->startWrite();
 
-      uint16_t currentBlockWidth  = canvasW / (uint16_t)sampleW;
-      uint16_t currentBlockHeight = canvasH / (uint16_t)sampleH;
-      if (currentBlockWidth == 0)  currentBlockWidth  = 1;
-      if (currentBlockHeight == 0) currentBlockHeight = 1;
-
-      for (uint16_t y = 0; y < (uint16_t)sampleH; y++) {
-        uint16_t py = y * currentBlockHeight;
-        uint16_t virtualY = (y * blocksH) / (uint16_t)sampleH;
-        if (virtualY >= blocksH) virtualY = blocksH - 1;
+      for (uint16_t y = 0; y < blocksH; y++) {
+        uint16_t py = y * blockHeight;
         
-        for (uint16_t x = 0; x < (uint16_t)sampleW; x++) {
-          uint16_t virtualX = (x * blocksW) / (uint16_t)sampleW;
-          if (virtualX >= blocksW) virtualX = blocksW - 1;
-          
-          uint32_t c = seg.getPixelColorXY(virtualX, virtualY);
+        for (uint16_t x = 0; x < blocksW; x++) {
+          uint32_t c = seg.getPixelColorXY(x, y);
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          uint16_t px = x * currentBlockWidth;
+          uint16_t px = x * blockWidth;
           
-          gfx->writeFillRect(px, py, currentBlockWidth, currentBlockHeight, color16);
+          gfx->writeFillRect(px, py, blockWidth, blockHeight, color16);
         }
       }
       
@@ -164,30 +141,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           gfx->fillScreen(RGB565_BLACK);
         }
       }
-    }
-
-    void addToConfig(JsonObject& root) override {
-      JsonObject top = root.createNestedObject(F("DisplayMatrix"));
-      top[FPSTR(SETTING_SAMPLE_W)] = sampleW;
-      top[FPSTR(SETTING_SAMPLE_H)] = sampleH;
-    }
-
-    bool readFromConfig(JsonObject& root) override {
-      JsonObject top = root[F("DisplayMatrix")];
-      if (top.isNull()) return false;
-
-      bool configChanged = false;
-      int oldW = sampleW;
-      int oldH = sampleH;
-
-      // Typo corrected: closing brackets aligned properly outside the FPSTR macros
-      if (top[FPSTR(SETTING_SAMPLE_W)].is<int>()) sampleW = top[FPSTR(SETTING_SAMPLE_W)];
-      if (top[FPSTR(SETTING_SAMPLE_H)].is<int>()) sampleH = top[FPSTR(SETTING_SAMPLE_H)];
-
-      if (sampleW != oldW || sampleH != oldH) {
-        blocksW = 0; 
-      }
-      return true;
     }
 
     void addToJsonState(JsonObject& root) override {
