@@ -63,15 +63,15 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // Reverted to full 170x320 canvas configuration with 0 offsets to clear the static margins
+      // Match the physical landscape size and hardware resolution mapping exactly
       gfx = new Arduino_ST7789(
         bus, 
         TFT_RST, 
-        1,     // Landscape orientation 
+        1,     // Landscape
         true,  // IPS mode
-        170,   // Panel native height
-        320,   // Panel native width
-        0,     // 0 offset ensures the canvas fills the entire RAM window
+        320,   // Canvas Width
+        170,   // Canvas Height
+        0,     // 0 offset to remove borders
         0      
       );
 
@@ -82,21 +82,24 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       initDone = true;
     }
 
-    // Intercepting the core frame output rather than using handleOverlayDraw
-    void show() override {
+    // Correct WLED pipeline method hook
+    void handleOverlayDraw() override {
       if (!initDone || !gfx || !lastPowerState) return;
 
-      // Access the live matrix layout configurations
-      uint16_t width = strip.isMatrix ? segments[0].width() : 320;
-      uint16_t height = strip.isMatrix ? segments[0].height() : 1;
-      
+      // Safely fetch matrix dimensions from modern WLED core structures
+      uint16_t matrixWidth  = strip.isMatrix ? strip.getMatrixWidth()  : 1;
+      uint16_t matrixHeight = strip.isMatrix ? strip.getMatrixHeight() : 1;
+
+      if (matrixWidth == 0 || matrixHeight == 0) return;
+
       gfx->startWrite();
       
-      // Dual-axis mapping to safely scale WLED matrix data to your screen aspect ratio
-      for (uint16_t y = 0; y < height; y++) {
-        for (uint16_t x = 0; x < width; x++) {
-          // Fetch color data directly from the active engine layer
-          uint32_t c = strip.isMatrix ? strip.getPixelColor(xy32(x, y)) : strip.getPixelColor(x);
+      // Dual-axis 2D Matrix coordinate mapping loops
+      for (uint16_t y = 0; y < matrixHeight; y++) {
+        for (uint16_t x = 0; x < matrixWidth; x++) {
+          
+          // Use modern safe API mapping coordinates for 2D setups
+          uint32_t c = strip.getPixelColor(x + (y * matrixWidth));
           
           uint8_t r = (c >> 16) & 0xFF;
           uint8_t g = (c >> 8)  & 0xFF;
@@ -104,12 +107,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           
           uint16_t color16 = gfx->color565(r, g, b);
           
-          // Render pixels, scaling up the output dimensions if you are running a small virtual matrix size
-          if (strip.isMatrix) {
-            gfx->writeFillRect(x * 4, y * 4, 4, 4, color16);
-          } else {
-            gfx->writePixel(x % 320, y, color16);
-          }
+          // Scale pixels dynamically based on your configured virtual matrix size
+          // Calculates proportional block size to safely fit within the 320x170 panel layout
+          uint16_t blockWidth  = 320 / matrixWidth;
+          uint16_t blockHeight = 170 / matrixHeight;
+          if (blockWidth == 0)  blockWidth  = 1;
+          if (blockHeight == 0) blockHeight = 1;
+
+          gfx->writeFillRect(x * blockWidth, y * blockHeight, blockWidth, blockHeight, color16);
         }
       }
       
@@ -130,7 +135,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (!lastPowerState) return;
 
-      // Overlay text data on top of the running canvas sequence
+      // Overlay text metadata safely every 5 seconds
       if (millis() - lastUpdate > 5000) {
         lastUpdate = millis();
         gfx->setTextSize(2);
