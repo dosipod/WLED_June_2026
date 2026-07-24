@@ -63,18 +63,18 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, -1);
 
-      // TARGETED 1.9" HMI DRIVER INJECTION:
-      // This long form constructor overrides internal Arduino_GFX macros, forcing 
-      // width and height dimensions directly onto the active hardware orientation layers.
-      gfx = new Arduino_ST7789(
+      // UNMANAGED DRIVER INJECTION:
+      // Arduino_ST7789_RPi removes library macro transformations.
+      // Passing 170x320 with 0,0 forces the canvas to cleanly fill the physical bounds.
+      gfx = new Arduino_ST7789_RPi(
         bus, 
         TFT_RST, 
         1,     // Rotation: 1 (Landscape)
         true,  // IPS Color Profile
-        320,   // Active Landscape Width
-        170,   // Active Landscape Height
-        35,    // Shift Window 35 columns left to erase the static row
-        0      // 0 Row offset
+        170,   // Physical Width
+        320,   // Physical Height
+        0,     // Strict 0 Column Offset
+        0      // Strict 0 Row Offset
       );
 
       gfx->begin();
@@ -96,9 +96,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       gfx->startWrite();
       
-      // Scale ratios bound cleanly to the customized 320x170 hardware resolution glass layout
-      float scaleX = 320.0f / (float)matrixWidth;
-      float scaleY = 170.0f / (float)matrixHeight;
+      float displayWidth  = (float)gfx->width();
+      float displayHeight = (float)gfx->height();
+
+      float scaleX = displayWidth / (float)matrixWidth;
+      float scaleY = displayHeight / (float)matrixHeight;
       
       for (uint16_t y = 0; y < matrixHeight; y++) {
         for (uint16_t x = 0; x < matrixWidth; x++) {
