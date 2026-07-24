@@ -3,7 +3,7 @@
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    TFT_eSPI tft = TFT_eSPI();
+    TFT_eSPI* tft = nullptr; // Switch to heap pointer to control instantiation timing
     unsigned long lastUpdate = 0;
     bool initDone = false;
     bool pinsAllocated = false;
@@ -24,8 +24,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           DEBUG_PRINT(F(" on Pin: "));
           DEBUG_PRINTLN(pinsToAllocate[i]);
 
-          // Call allocatePin directly as a static method of PinManager
-          if (!PinManager::allocatePin(pinsToAllocate[i], true, PinOwner::UM_Unspecified)) {
+          // Pass FALSE for the second argument to prevent WLED from overwriting IO registers
+          if (!PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified)) {
             DEBUG_PRINT(F("[UM_DisplayMatrix] FATAL: Pin allocation failed for "));
             DEBUG_PRINTLN(pinNames[i]);
             pinsAllocated = false;
@@ -39,28 +39,30 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         return;
       }
 
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] All pins allocated successfully. Initializing TFT..."));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] All pins allocated safely. Initializing TFT on Heap..."));
 
-      tft.init();
-      tft.setRotation(1);
-      tft.fillScreen(TFT_BLACK);
-      tft.setTextColor(TFT_WHITE, TFT_BLACK);
-      tft.setTextSize(2);
-      tft.drawString("WLED Initializing...", 10, 10);
+      // Safely instantiate now that core registers are ready
+      tft = new TFT_eSPI();
+      tft->init();
+      tft->setRotation(1);
+      tft->fillScreen(TFT_BLACK);
+      tft->setTextColor(TFT_WHITE, TFT_BLACK);
+      tft->setTextSize(2);
+      tft->drawString("WLED Initializing...", 10, 10);
 
       DEBUG_PRINTLN(F("[UM_DisplayMatrix] TFT initialized successfully!"));
       initDone = true;
     }
 
     void loop() override {
-      if (!initDone || !pinsAllocated) return;
+      if (!initDone || !pinsAllocated || !tft) return;
 
       if (millis() - lastUpdate > 1000) {
         lastUpdate = millis();
         
-        tft.fillScreen(TFT_BLACK);
-        tft.drawString("WLED Active", 10, 10);
-        tft.drawString(WiFi.localIP().toString().c_str(), 10, 40);
+        tft->fillScreen(TFT_BLACK);
+        tft->drawString("WLED Active", 10, 10);
+        tft->drawString(WiFi.localIP().toString().c_str(), 10, 40);
       }
     }
 
