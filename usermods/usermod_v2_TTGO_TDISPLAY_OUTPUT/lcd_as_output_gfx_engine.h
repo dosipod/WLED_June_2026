@@ -7,39 +7,45 @@ class LcdGfxEngine {
   private:
     Arduino_DataBus* bus = nullptr;
     Arduino_GFX* gfx = nullptr;
-    uint16_t blocksW = 0;
-    uint16_t blocksH = 0;
-    uint16_t canvasW = 0;
-    uint16_t canvasH = 0;
-    uint16_t blockWidth = 1;
-    uint16_t blockHeight = 1;
+    uint16_t blocksW = 0, blocksH = 0;
+    uint16_t canvasW = 0, canvasH = 0;
+    uint16_t blockWidth = 1, blockHeight = 1;
+    bool isInit = false;
 
   public:
-    void init(int8_t mosi, int8_t sclk, int8_t cs, int8_t dc, int8_t rst, uint16_t w, uint16_t h) {
+    void init(int8_t mosi, int8_t sclk, int8_t cs, int8_t dc, int8_t rst, uint16_t w, uint16_t h, int16_t colOffset) {
+      // Clean up previous instances if settings are updated live
+      if (gfx)  { delete gfx; gfx = nullptr; }
+      if (bus)  { delete bus; bus = nullptr; }
+      isInit = false;
+
+      // Fail-safe protection check against missing or unassigned hardware pins
+      if (mosi < 0 || sclk < 0 || cs < 0 || dc < 0 || rst < 0) return;
+
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
       
-      // Official 170x320 panel footprint mapping with dual-axis landscape offsets
-      gfx = new Arduino_ST7789(bus, rst, 1, true, w, h, 35, 0, 35, 0);
+      // Pass unrotated height as width and width as height to align with standard landscape driver mapping
+      gfx = new Arduino_ST7789(bus, rst, 1, true, h, w, colOffset, 0, colOffset, 0);
       gfx->begin();
       gfx->fillScreen(RGB565_BLACK);
+      isInit = true;
     }
 
     void clear() {
-      if (gfx) gfx->fillScreen(RGB565_BLACK);
+      if (isInit && gfx) gfx->fillScreen(RGB565_BLACK);
     }
 
     void drawFrame(WS2812FX& strip) {
-      if (!gfx || !strip.isMatrix) return;
+      if (!isInit || !gfx || !strip.isMatrix) return;
       
       Segment& seg = strip.getSegment(0);
-      uint16_t currentW = seg.width();
-      uint16_t currentH = seg.height();
-      if (currentW == 0 || currentH == 0) return;
+      uint16_t segW = seg.width();
+      uint16_t segH = seg.height();
+      if (segW == 0 || segH == 0) return;
 
-      // Handle structural canvas adjustments adaptively
-      if (currentW != blocksW || currentH != blocksH) {
-        blocksW = currentW;
-        blocksH = currentH;
+      if (segW != blocksW || segH != blocksH) {
+        blocksW = segW;
+        blocksH = segH;
         canvasW = gfx->width();
         canvasH = gfx->height();
         blockWidth  = canvasW / blocksW;
@@ -50,7 +56,6 @@ class LcdGfxEngine {
       }
 
       gfx->startWrite();
-      // Render frame matrix using your classic, reliable segment calculation loops
       for (int h = 0; h < blocksH; h++) {
         uint16_t py = h * blockHeight;
         for (int w = 0; w < blocksW; w++) {
