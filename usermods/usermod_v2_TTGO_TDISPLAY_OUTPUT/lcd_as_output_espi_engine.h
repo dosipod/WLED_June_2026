@@ -23,10 +23,10 @@ class LcdTfteSpiEngine {
       if (isInit) tft.fillScreen(TFT_BLACK);
     }
 
-    void drawFrame(WS2812FX& strip) {
-      if (!strip.isMatrix) return;
+    void drawFrame(WS2812FX& fx) {
+      if (!isInit || !fx.isMatrix) return;
       
-      Segment& seg = strip.getSegment(0);
+      Segment& seg = fx.getSegment(0);
       if (seg.width() != blocksW || seg.height() != blocksH) {
         blocksW = seg.width();
         blocksH = seg.height();
@@ -37,18 +37,19 @@ class LcdTfteSpiEngine {
 
       for (int h = 0; h < blocksH; h++) {
         for (int w = 0; w < blocksW; w++) {
-          uint32_t c = strip.getPixelColor(seg.start + w + h * seg.width());
+          uint32_t c = fx.getPixelColor(seg.start + w + h * seg.width());
           tft.fillRect(w * blockWidth, h * blockHeight, blockWidth, blockHeight, tft.color24to16(c));
         }
       }
     }
 };
 #else
+// Standard fallback placeholder with corrected argument name tracking
 class LcdTfteSpiEngine {
   public:
     void init() {}
     void clear() {}
-    void drawFrame(WS2812FX& strip) {}
+    void drawFrame(WS2812FX& fx) {}
 };
 #endif
 
