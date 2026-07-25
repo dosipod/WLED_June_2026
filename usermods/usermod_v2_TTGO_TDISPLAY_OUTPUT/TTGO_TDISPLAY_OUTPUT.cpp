@@ -154,21 +154,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (top.isNull()) return false;
 
       int oldProfile = selectedProfile;
+      // WLED Standard JSON Extraction syntax: Use raw assignments paired with inline defaults
       selectedProfile = top[FPSTR(SETTING_PROFILE)] | selectedProfile;
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
-        // Safe configuration parsing using fallback OR assignments instead of bitwise markers
-        displayWidth  = top[FPSTR(SETTING_WIDTH)]  || displayWidth;
-        displayHeight = top[FPSTR(SETTING_HEIGHT)] || displayHeight;
-        colOffset     = top[FPSTR(SETTING_OFFSET)] || colOffset;
-        pinMosi       = top[FPSTR(PIN_MOSI_KEY)]   || pinMosi;
-        pinSclk       = top[FPSTR(PIN_SCLK_KEY)]   || pinSclk;
-        pinCs         = top[FPSTR(PIN_CS_KEY)]     || pinCs;
-        pinDc         = top[FPSTR(PIN_DC_KEY)]     || pinDc;
-        pinRst        = top[FPSTR(PIN_RST_KEY)]    || pinRst;
-        pinBl         = top[FPSTR(PIN_BL_KEY)]     || pinBl;
+        // Correct native ArduinoJson parser logic using default fallback assignments
+        displayWidth  = top[FPSTR(SETTING_WIDTH)]  | displayWidth;
+        displayHeight = top[FPSTR(SETTING_HEIGHT)] | displayHeight;
+        colOffset     = top[FPSTR(SETTING_OFFSET)] | colOffset;
+        pinMosi       = top[FPSTR(PIN_MOSI_KEY)]   | pinMosi;
+        pinSclk       = top[FPSTR(PIN_SCLK_KEY)]   | pinSclk;
+        pinCs         = top[FPSTR(PIN_CS_KEY)]     | pinCs;
+        pinDc         = top[FPSTR(PIN_DC_KEY)]     | pinDc;
+        pinRst        = top[FPSTR(PIN_RST_KEY)]    | pinRst;
+        pinBl         = top[FPSTR(PIN_BL_KEY)]     | pinBl;
       }
 
       if (initDone) {
