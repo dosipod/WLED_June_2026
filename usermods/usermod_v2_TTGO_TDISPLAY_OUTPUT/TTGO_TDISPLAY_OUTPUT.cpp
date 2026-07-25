@@ -78,14 +78,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   public:
     void setup() override {
       #ifdef TFT_WIDTH
-        displayWidth = TFT_WIDTH;
-        displayHeight = TFT_HEIGHT;
-        pinMosi = TFT_MOSI;
-        pinSclk = TFT_SCLK;
-        pinCs   = TFT_CS;
-        pinDc   = TFT_DC;
-        pinRst  = TFT_RST;
-        pinBl   = TFT_BL;
+        displayWidth = (uint16_t)TFT_WIDTH;
+        displayHeight = (uint16_t)TFT_HEIGHT;
+        pinMosi = (int8_t)TFT_MOSI;
+        pinSclk = (int8_t)TFT_SCLK;
+        pinCs   = (int8_t)TFT_CS;
+        pinDc   = (int8_t)TFT_DC;
+        pinRst  = (int8_t)TFT_RST;
+        pinBl   = (int8_t)TFT_BL;
         selectedProfile = 0;
       #else
         applyHardwareProfile();
@@ -109,7 +109,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // FIXED SEPARATION: Calls the correct configuration method signature depending on driver mode
       #if (IS_ESPI_ACTIVE == 1)
         engine.init();
       #else
@@ -162,9 +161,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
-        if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = top[FPSTR(SETTING_WIDTH)].as<int>();
-        if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = top[FPSTR(SETTING_HEIGHT)].as<int>();
-        if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = top[FPSTR(SETTING_OFFSET)].as<int>();
+        if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = (uint16_t)top[FPSTR(SETTING_WIDTH)].as<int>();
+        if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = (uint16_t)top[FPSTR(SETTING_HEIGHT)].as<int>();
+        if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = (int16_t)top[FPSTR(SETTING_OFFSET)].as<int>();
         if (top[FPSTR(PIN_MOSI_KEY)].is<int>())    pinMosi       = (int8_t)top[FPSTR(PIN_MOSI_KEY)].as<int>();
         if (top[FPSTR(PIN_SCLK_KEY)].is<int>())    pinSclk       = (int8_t)top[FPSTR(PIN_SCLK_KEY)].as<int>();
         if (top[FPSTR(PIN_CS_KEY)].is<int>())      pinCs         = (int8_t)top[FPSTR(PIN_CS_KEY)].as<int>();
@@ -174,7 +173,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
 
       if (initDone) {
-        // FIXED SEPARATION: Applied compile check inside config updates block
         #if (IS_ESPI_ACTIVE == 1)
           engine.init();
         #else
