@@ -1,11 +1,8 @@
 name: WLED CI
 
+# 1. Completely replace your current "on:" block with this:
 on:
-  push:
-    branches:
-      - '*'
-  pull_request:
+  workflow_dispatch:
 
 jobs:
-  wled_build:
-    uses: ./.github/workflows/build.yml
+  # The remaining code for the jobs calling your build.yml template stays exactly the same below...
