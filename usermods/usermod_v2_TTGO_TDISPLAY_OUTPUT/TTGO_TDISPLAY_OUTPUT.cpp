@@ -78,7 +78,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      // Step 1: Ingest platformio.ini compile-time overrides if they exist
       #ifdef TFT_WIDTH
         displayWidth = TFT_WIDTH;
         displayHeight = TFT_HEIGHT;
@@ -87,16 +86,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         pinCs   = TFT_CS;
         pinDc   = TFT_DC;
         pinRst  = TFT_RST;
-        pinBl = TFT_BL;
+        pinBl   = TFT_BL;
         selectedProfile = 0;
       #else
         applyHardwareProfile();
       #endif
     }
 
-    // Step 2: WLED Native Configuration Initialization Hook
-    // This executes EXACTLY once per boot, right after /cfg.json is fully loaded into memory.
-    // It runs completely clear of real-time threads, protecting the MCU from watchdog panics.
     void init() override {
       if (initDone) return;
 
@@ -125,6 +121,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void handleOverlayDraw() override {
       if (!initDone || !lastPowerState) return;
+      // Pass the unified global strip object directly into the renamed target function signature
       engine.drawFrame(strip);
     }
 
@@ -163,7 +160,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        // Re-route parameters safely through the isolated configuration lifecycle hook
         if (initDone) {
           #if (IS_ESPI_ACTIVE == 1)
             engine.init();
