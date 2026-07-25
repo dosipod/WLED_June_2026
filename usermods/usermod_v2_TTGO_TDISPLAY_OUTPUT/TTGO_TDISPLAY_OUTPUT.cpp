@@ -50,7 +50,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool initDone = false;
     bool lastPowerState = true;
 
-    // BRACKETS FIXED FOR STRINGS
+    // FIXED FIXED-SIZE STRING ARRAYS ASSIGNMENTS
     const char SETTING_PROFILE[] = "Hardware-Profile";
     const char SETTING_WIDTH[]   = "Display-Width";
     const char SETTING_HEIGHT[]  = "Display-Height";
