@@ -155,7 +155,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       int oldProfile = selectedProfile;
       
-      // Explicit type verification safety block to resolve the assignment layout fault
       if (top[FPSTR(SETTING_PROFILE)].is<int>()) {
         selectedProfile = top[FPSTR(SETTING_PROFILE)].as<int>();
       }
