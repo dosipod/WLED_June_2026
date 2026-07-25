@@ -1,6 +1,7 @@
 #ifndef LCD_AS_OUTPUT_ESPI_ENGINE_H
 #define LCD_AS_OUTPUT_ESPI_ENGINE_H
 
+#if __has_include(<TFT_eSPI.h>)
 #include <TFT_eSPI.h>
 
 class LcdTfteSpiEngine {
@@ -23,7 +24,7 @@ class LcdTfteSpiEngine {
     }
 
     void drawFrame(WS2812FX& strip) {
-      if (!isInit || !strip.isMatrix) return;
+      if (!strip.isMatrix) return;
       
       Segment& seg = strip.getSegment(0);
       if (seg.width() != blocksW || seg.height() != blocksH) {
@@ -42,5 +43,13 @@ class LcdTfteSpiEngine {
       }
     }
 };
+#else
+class LcdTfteSpiEngine {
+  public:
+    void init() {}
+    void clear() {}
+    void drawFrame(WS2812FX& strip) {}
+};
+#endif
 
 #endif
