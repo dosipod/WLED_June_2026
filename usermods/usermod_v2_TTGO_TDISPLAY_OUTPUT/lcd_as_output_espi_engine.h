@@ -44,7 +44,6 @@ class LcdTfteSpiEngine {
     }
 };
 #else
-// Standard fallback placeholder with corrected argument name tracking
 class LcdTfteSpiEngine {
   public:
     void init() {}
