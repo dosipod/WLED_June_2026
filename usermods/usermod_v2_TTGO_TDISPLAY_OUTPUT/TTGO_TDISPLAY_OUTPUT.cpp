@@ -40,17 +40,17 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t displayHeight = 170;
     int16_t colOffset = 35;
     
-    int pinMosi = -1;
-    int pinSclk = -1;
-    int pinCs   = -1;
-    int pinDc   = -1;
-    int pinRst  = -1;
-    int pinBl   = -1;
+    // Explicitly typed as int8_t to guarantee strict compiler matching layers
+    int8_t pinMosi = -1;
+    int8_t pinSclk = -1;
+    int8_t pinCs   = -1;
+    int8_t pinDc   = -1;
+    int8_t pinRst  = -1;
+    int8_t pinBl   = -1;
 
     bool initDone = false;
     bool lastPowerState = true;
 
-    // FIXED FIXED-SIZE STRING ARRAYS ASSIGNMENTS
     const char SETTING_PROFILE[] = "Hardware-Profile";
     const char SETTING_WIDTH[]   = "Display-Width";
     const char SETTING_HEIGHT[]  = "Display-Height";
@@ -97,7 +97,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (initDone) return;
 
       if (pinMosi >= 0) {
-        int8_t pinsToAllocate[] = { (int8_t)pinMosi, (int8_t)pinSclk, (int8_t)pinCs, (int8_t)pinDc, (int8_t)pinRst, (int8_t)pinBl };
+        int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
         for (uint8_t i = 0; i < 6; i++) {
           if (pinsToAllocate[i] >= 0) {
             PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
@@ -113,7 +113,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #if (IS_ESPI_ACTIVE == 1)
         engine.init();
       #else
-        engine.init((int8_t)pinMosi, (int8_t)pinSclk, (int8_t)pinCs, (int8_t)pinDc, (int8_t)pinRst, displayWidth, displayHeight, colOffset);
+        engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
       #endif
 
       initDone = true;
@@ -165,19 +165,21 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = top[FPSTR(SETTING_WIDTH)].as<int>();
         if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = top[FPSTR(SETTING_HEIGHT)].as<int>();
         if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = top[FPSTR(SETTING_OFFSET)].as<int>();
-        if (top[FPSTR(PIN_MOSI_KEY)].is<int>())    pinMosi       = top[FPSTR(PIN_MOSI_KEY)].as<int>();
-        if (top[FPSTR(PIN_SCLK_KEY)].is<int>())    pinSclk       = top[FPSTR(PIN_SCLK_KEY)].as<int>();
-        if (top[FPSTR(PIN_CS_KEY)].is<int>())      pinCs         = top[FPSTR(PIN_CS_KEY)].as<int>();
-        if (top[FPSTR(PIN_DC_KEY)].is<int>())      pinDc         = top[FPSTR(PIN_DC_KEY)].as<int>();
-        if (top[FPSTR(PIN_RST_KEY)].is<int>())     pinRst        = top[FPSTR(PIN_RST_KEY)].as<int>();
-        if (top[FPSTR(PIN_BL_KEY)].is<int>())      pinBl         = top[FPSTR(PIN_BL_KEY)].as<int>();
+        
+        // Unpack configuration parameters using proper explicit int8_t castings
+        if (top[FPSTR(PIN_MOSI_KEY)].is<int>())    pinMosi       = (int8_t)top[FPSTR(PIN_MOSI_KEY)].as<int>();
+        if (top[FPSTR(PIN_SCLK_KEY)].is<int>())    pinSclk       = (int8_t)top[FPSTR(PIN_SCLK_KEY)].as<int>();
+        if (top[FPSTR(PIN_CS_KEY)].is<int>())      pinCs         = (int8_t)top[FPSTR(PIN_CS_KEY)].as<int>();
+        if (top[FPSTR(PIN_DC_KEY)].is<int>())      pinDc         = (int8_t)top[FPSTR(PIN_DC_KEY)].as<int>();
+        if (top[FPSTR(PIN_RST_KEY)].is<int>())     pinRst        = (int8_t)top[FPSTR(PIN_RST_KEY)].as<int>();
+        if (top[FPSTR(PIN_BL_KEY)].is<int>())      pinBl         = (int8_t)top[FPSTR(PIN_BL_KEY)].as<int>();
       }
 
       if (initDone) {
         #if (IS_ESPI_ACTIVE == 1)
           engine.init();
         #else
-          engine.init((int8_t)pinMosi, (int8_t)pinSclk, (int8_t)pinCs, (int8_t)pinDc, (int8_t)pinRst, displayWidth, displayHeight, colOffset);
+          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
         #endif
       }
       return true;
