@@ -24,18 +24,6 @@
   #define IS_ESPI_ACTIVE 0
 #endif
 
-// FIXED MACRO KEY MESSAGES: CLEAN CHANNELS WITHOUT EQUAL SIGNS
-#define SETTING_PROFILE "Hardware-Profile"
-#define SETTING_WIDTH   "Display-Width"
-#define SETTING_HEIGHT  "Display-Height"
-#define SETTING_OFFSET  "Column-Offset"
-#define PIN_MOSI_KEY    "Pin-MOSI"
-#define PIN_SCLK_KEY    "Pin-SCLK"
-#define PIN_CS_KEY      "Pin-CS"
-#define PIN_DC_KEY      "Pin-DC"
-#define PIN_RST_KEY     "Pin-RST"
-#define PIN_BL_KEY      "Pin-Backlight"
-
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
     #if (IS_ESPI_ACTIVE == 1)
@@ -138,16 +126,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void addToConfig(JsonObject& root) override {
       JsonObject top = root.createNestedObject(F("DisplayMatrix"));
-      top[F(SETTING_PROFILE)] = selectedProfile; 
-      top[F(SETTING_WIDTH)]  = displayWidth;
-      top[F(SETTING_HEIGHT)] = displayHeight;
-      top[F(SETTING_OFFSET)] = colOffset;
-      top[F(PIN_MOSI_KEY)]   = pinMosi;
-      top[F(PIN_SCLK_KEY)]   = pinSclk;
-      top[F(PIN_CS_KEY)]     = pinCs;
-      top[F(PIN_DC_KEY)]     = pinDc;
-      top[F(PIN_RST_KEY)]    = pinRst;
-      top[F(PIN_BL_KEY)]     = pinBl;
+      top[F("Hardware-Profile")] = selectedProfile; 
+      top[F("Display-Width")]    = displayWidth;
+      top[F("Display-Height")]   = displayHeight;
+      top[F("Column-Offset")]    = colOffset;
+      top[F("Pin-MOSI")]         = pinMosi;
+      top[F("Pin-SCLK")]         = pinSclk;
+      top[F("Pin-CS")]           = pinCs;
+      top[F("Pin-DC")]           = pinDc;
+      top[F("Pin-RST")]          = pinRst;
+      top[F("Pin-Backlight")]    = pinBl;
     }
 
     bool readFromConfig(JsonObject& root) override {
@@ -155,22 +143,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (top.isNull()) return false;
 
       int oldProfile = selectedProfile;
-      if (top[F(SETTING_PROFILE)].is<int>()) {
-        selectedProfile = top[F(SETTING_PROFILE)].as<int>();
+      if (top[F("Hardware-Profile")].is<int>()) {
+        selectedProfile = top[F("Hardware-Profile")].as<int>();
       }
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
-        if (top[F(SETTING_WIDTH)].is<int>())   displayWidth  = (uint16_t)top[F(SETTING_WIDTH)].as<int>();
-        if (top[F(SETTING_HEIGHT)].is<int>())  displayHeight = (uint16_t)top[F(SETTING_HEIGHT)].as<int>();
-        if (top[F(SETTING_OFFSET)].is<int>())  colOffset     = (int16_t)top[F(SETTING_OFFSET)].as<int>();
-        if (top[F(PIN_MOSI_KEY)].is<int>())    pinMosi       = (int8_t)top[F(PIN_MOSI_KEY)].as<int>();
-        if (top[F(PIN_SCLK_KEY)].is<int>())    pinSclk       = (int8_t)top[F(PIN_SCLK_KEY)].as<int>();
-        if (top[F(PIN_CS_KEY)].is<int>())      pinCs         = (int8_t)top[F(PIN_CS_KEY)].as<int>();
-        if (top[F(PIN_DC_KEY)].is<int>())      pinDc         = (int8_t)top[F(PIN_DC_KEY)].as<int>();
-        if (top[F(PIN_RST_KEY)].is<int>())     pinRst        = (int8_t)top[F(PIN_RST_KEY)].as<int>();
-        if (top[F(PIN_BL_KEY)].is<int>())      pinBl         = (int8_t)top[F(PIN_BL_KEY)].as<int>();
+        if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
+        if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
+        if (top[F("Column-Offset")].is<int>())    colOffset     = (int16_t)top[F("Column-Offset")].as<int>();
+        if (top[F("Pin-MOSI")].is<int>())         pinMosi       = (int8_t)top[F("Pin-MOSI")].as<int>();
+        if (top[F("Pin-SCLK")].is<int>())         pinSclk       = (int8_t)top[F("Pin-SCLK")].as<int>();
+        if (top[F("Pin-CS")].is<int>())           pinCs         = (int8_t)top[F("Pin-CS")].as<int>();
+        if (top[F( "Pin-DC")].is<int>())          pinDc         = (int8_t)top[F("Pin-DC")].as<int>();
+        if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
+        if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
       }
 
       if (initDone) {
