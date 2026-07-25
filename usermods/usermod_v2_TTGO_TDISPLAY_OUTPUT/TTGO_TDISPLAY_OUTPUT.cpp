@@ -24,6 +24,18 @@
   #define IS_ESPI_ACTIVE 0
 #endif
 
+// WLED STANDARD DEFINITIONS FOR USERMOD CONFIGURATION STRINGS
+#define SETTING_PROFILE "Hardware-Profile"
+#define SETTING_WIDTH   "Display-Width"
+#define SETTING_HEIGHT  "Display-Height"
+#define SETTING_OFFSET  "Column-Offset"
+#define PIN_MOSI_KEY    "Pin-MOSI"
+#define PIN_SCLK_KEY    "Pin-SCLK"
+#define PIN_CS_KEY      = "Pin-CS"
+#define PIN_DC_KEY      "Pin-DC"
+#define PIN_RST_KEY     "Pin-RST"
+#define PIN_BL_KEY      "Pin-Backlight"
+
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
     #if (IS_ESPI_ACTIVE == 1)
@@ -49,18 +61,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
-
-    // VERIFIED FIX: Array brackets [] explicitly restored for all string literal mappings
-    const char SETTING_PROFILE[] = "Hardware-Profile";
-    const char SETTING_WIDTH[]   = "Display-Width";
-    const char SETTING_HEIGHT[]  = "Display-Height";
-    const char SETTING_OFFSET[]  = "Column-Offset";
-    const char PIN_MOSI_KEY[]    = "Pin-MOSI";
-    const char PIN_SCLK_KEY[]    = "Pin-SCLK";
-    const char PIN_CS_KEY[]      = "Pin-CS";
-    const char PIN_DC_KEY[]      = "Pin-DC";
-    const char PIN_RST_KEY[]     = "Pin-RST";
-    const char PIN_BL_KEY[]      = "Pin-Backlight";
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -138,16 +138,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void addToConfig(JsonObject& root) override {
       JsonObject top = root.createNestedObject(F("DisplayMatrix"));
-      top[FPSTR(SETTING_PROFILE)] = selectedProfile; 
-      top[FPSTR(SETTING_WIDTH)]  = displayWidth;
-      top[FPSTR(SETTING_HEIGHT)] = displayHeight;
-      top[FPSTR(SETTING_OFFSET)] = colOffset;
-      top[FPSTR(PIN_MOSI_KEY)]   = pinMosi;
-      top[FPSTR(PIN_SCLK_KEY)]   = pinSclk;
-      top[FPSTR(PIN_CS_KEY)]     = pinCs;
-      top[FPSTR(PIN_DC_KEY)]     = pinDc;
-      top[FPSTR(PIN_RST_KEY)]    = pinRst;
-      top[FPSTR(PIN_BL_KEY)]     = pinBl;
+      top[F(SETTING_PROFILE)] = selectedProfile; 
+      top[F(SETTING_WIDTH)]  = displayWidth;
+      top[F(SETTING_HEIGHT)] = displayHeight;
+      top[F(SETTING_OFFSET)] = colOffset;
+      top[F(PIN_MOSI_KEY)]   = pinMosi;
+      top[F(PIN_SCLK_KEY)]   = pinSclk;
+      top[F(PIN_CS_KEY)]     = pinCs;
+      top[F(PIN_DC_KEY)]     = pinDc;
+      top[F(PIN_RST_KEY)]    = pinRst;
+      top[F(PIN_BL_KEY)]     = pinBl;
     }
 
     bool readFromConfig(JsonObject& root) override {
@@ -155,22 +155,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (top.isNull()) return false;
 
       int oldProfile = selectedProfile;
-      if (top[FPSTR(SETTING_PROFILE)].is<int>()) {
-        selectedProfile = top[FPSTR(SETTING_PROFILE)].as<int>();
+      if (top[F(SETTING_PROFILE)].is<int>()) {
+        selectedProfile = top[F(SETTING_PROFILE)].as<int>();
       }
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
-        if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = (uint16_t)top[FPSTR(SETTING_WIDTH)].as<int>();
-        if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = (uint16_t)top[FPSTR(SETTING_HEIGHT)].as<int>();
-        if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = (int16_t)top[FPSTR(SETTING_OFFSET)].as<int>();
-        if (top[FPSTR(PIN_MOSI_KEY)].is<int>())    pinMosi       = (int8_t)top[FPSTR(PIN_MOSI_KEY)].as<int>();
-        if (top[FPSTR(PIN_SCLK_KEY)].is<int>())    pinSclk       = (int8_t)top[FPSTR(PIN_SCLK_KEY)].as<int>();
-        if (top[FPSTR(PIN_CS_KEY)].is<int>())      pinCs         = (int8_t)top[FPSTR(PIN_CS_KEY)].as<int>();
-        if (top[FPSTR(PIN_DC_KEY)].is<int>())      pinDc         = (int8_t)top[FPSTR(PIN_DC_KEY)].as<int>();
-        if (top[FPSTR(PIN_RST_KEY)].is<int>())     pinRst        = (int8_t)top[FPSTR(PIN_RST_KEY)].as<int>();
-        if (top[FPSTR(PIN_BL_KEY)].is<int>())      pinBl         = (int8_t)top[FPSTR(PIN_BL_KEY)].as<int>();
+        if (top[F(SETTING_WIDTH)].is<int>())   displayWidth  = (uint16_t)top[F(SETTING_WIDTH)].as<int>();
+        if (top[F(SETTING_HEIGHT)].is<int>())  displayHeight = (uint16_t)top[F(SETTING_HEIGHT)].as<int>();
+        if (top[F(SETTING_OFFSET)].is<int>())  colOffset     = (int16_t)top[F(SETTING_OFFSET)].as<int>();
+        if (top[F(PIN_MOSI_KEY)].is<int>())    pinMosi       = (int8_t)top[F(PIN_MOSI_KEY)].as<int>();
+        if (top[F(PIN_SCLK_KEY)].is<int>())    pinSclk       = (int8_t)top[F(PIN_SCLK_KEY)].as<int>();
+        if (top[F(PIN_CS_KEY)].is<int>())      pinCs         = (int8_t)top[F(PIN_CS_KEY)].as<int>();
+        if (top[F(PIN_DC_KEY)].is<int>())      pinDc         = (int8_t)top[F(PIN_DC_KEY)].as<int>();
+        if (top[F(PIN_RST_KEY)].is<int>())     pinRst        = (int8_t)top[F(PIN_RST_KEY)].as<int>();
+        if (top[F(PIN_BL_KEY)].is<int>())      pinBl         = (int8_t)top[F(PIN_BL_KEY)].as<int>();
       }
 
       if (initDone) {
