@@ -40,16 +40,17 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t displayHeight = 170;
     int16_t colOffset = 35;
     
-    int8_t pinMosi = -1;
-    int8_t pinSclk = -1;
-    int8_t pinCs   = -1;
-    int8_t pinDc   = -1;
-    int8_t pinRst  = -1;
-    int8_t pinBl   = -1;
+    int pinMosi = -1;
+    int pinSclk = -1;
+    int pinCs   = -1;
+    int pinDc   = -1;
+    int pinRst  = -1;
+    int pinBl   = -1;
 
     bool initDone = false;
     bool lastPowerState = true;
 
+    // BRACKETS FIXED FOR STRINGS
     const char SETTING_PROFILE[] = "Hardware-Profile";
     const char SETTING_WIDTH[]   = "Display-Width";
     const char SETTING_HEIGHT[]  = "Display-Height";
@@ -96,7 +97,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (initDone) return;
 
       if (pinMosi >= 0) {
-        int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
+        int8_t pinsToAllocate[] = { (int8_t)pinMosi, (int8_t)pinSclk, (int8_t)pinCs, (int8_t)pinDc, (int8_t)pinRst, (int8_t)pinBl };
         for (uint8_t i = 0; i < 6; i++) {
           if (pinsToAllocate[i] >= 0) {
             PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
@@ -112,7 +113,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #if (IS_ESPI_ACTIVE == 1)
         engine.init();
       #else
-        engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        engine.init((int8_t)pinMosi, (int8_t)pinSclk, (int8_t)pinCs, (int8_t)pinDc, (int8_t)pinRst, displayWidth, displayHeight, colOffset);
       #endif
 
       initDone = true;
@@ -154,7 +155,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (top.isNull()) return false;
 
       int oldProfile = selectedProfile;
-      
       if (top[FPSTR(SETTING_PROFILE)].is<int>()) {
         selectedProfile = top[FPSTR(SETTING_PROFILE)].as<int>();
       }
@@ -177,7 +177,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         #if (IS_ESPI_ACTIVE == 1)
           engine.init();
         #else
-          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+          engine.init((int8_t)pinMosi, (int8_t)pinSclk, (int8_t)pinCs, (int8_t)pinDc, (int8_t)pinRst, displayWidth, displayHeight, colOffset);
         #endif
       }
       return true;
