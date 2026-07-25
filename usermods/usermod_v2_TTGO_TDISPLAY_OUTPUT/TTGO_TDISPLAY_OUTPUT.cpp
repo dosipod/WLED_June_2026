@@ -40,7 +40,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t displayHeight = 170;
     int16_t colOffset = 35;
     
-    // Explicitly typed as int8_t to guarantee strict compiler matching layers
     int8_t pinMosi = -1;
     int8_t pinSclk = -1;
     int8_t pinCs   = -1;
@@ -110,6 +109,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
+      // FIXED SEPARATION: Calls the correct configuration method signature depending on driver mode
       #if (IS_ESPI_ACTIVE == 1)
         engine.init();
       #else
@@ -165,8 +165,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = top[FPSTR(SETTING_WIDTH)].as<int>();
         if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = top[FPSTR(SETTING_HEIGHT)].as<int>();
         if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = top[FPSTR(SETTING_OFFSET)].as<int>();
-        
-        // Unpack configuration parameters using proper explicit int8_t castings
         if (top[FPSTR(PIN_MOSI_KEY)].is<int>())    pinMosi       = (int8_t)top[FPSTR(PIN_MOSI_KEY)].as<int>();
         if (top[FPSTR(PIN_SCLK_KEY)].is<int>())    pinSclk       = (int8_t)top[FPSTR(PIN_SCLK_KEY)].as<int>();
         if (top[FPSTR(PIN_CS_KEY)].is<int>())      pinCs         = (int8_t)top[FPSTR(PIN_CS_KEY)].as<int>();
@@ -176,6 +174,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
 
       if (initDone) {
+        // FIXED SEPARATION: Applied compile check inside config updates block
         #if (IS_ESPI_ACTIVE == 1)
           engine.init();
         #else
