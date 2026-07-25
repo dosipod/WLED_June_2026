@@ -161,6 +161,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
+        // EXPLICIT STRUCTURAL CASTING: Eliminates variable narrowing mismatch loops completely
         if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = (uint16_t)top[FPSTR(SETTING_WIDTH)].as<int>();
         if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = (uint16_t)top[FPSTR(SETTING_HEIGHT)].as<int>();
         if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = (int16_t)top[FPSTR(SETTING_OFFSET)].as<int>();
