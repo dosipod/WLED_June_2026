@@ -14,17 +14,13 @@ class LcdGfxEngine {
 
   public:
     void init(int8_t mosi, int8_t sclk, int8_t cs, int8_t dc, int8_t rst, uint16_t w, uint16_t h, int16_t colOffset) {
-      // Clean up previous instances if settings are updated live
-      if (gfx)  { delete gfx; gfx = nullptr; }
-      if (bus)  { delete bus; bus = nullptr; }
+      if (gfx) { delete gfx; gfx = nullptr; }
+      if (bus) { delete bus; bus = nullptr; }
       isInit = false;
 
-      // Fail-safe protection check against missing or unassigned hardware pins
       if (mosi < 0 || sclk < 0 || cs < 0 || dc < 0 || rst < 0) return;
 
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
-      
-      // Pass unrotated height as width and width as height to align with standard landscape driver mapping
       gfx = new Arduino_ST7789(bus, rst, 1, true, h, w, colOffset, 0, colOffset, 0);
       gfx->begin();
       gfx->fillScreen(RGB565_BLACK);
