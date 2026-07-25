@@ -64,24 +64,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
     }
 
-  public:
-    void setup() override {
-      #ifdef TFT_WIDTH
-        displayWidth = (uint16_t)TFT_WIDTH;
-        displayHeight = (uint16_t)TFT_HEIGHT;
-        pinMosi = (int8_t)TFT_MOSI;
-        pinSclk = (int8_t)TFT_SCLK;
-        pinCs   = (int8_t)TFT_CS;
-        pinDc   = (int8_t)TFT_DC;
-        pinRst  = (int8_t)TFT_RST;
-        pinBl   = (int8_t)TFT_BL;
-        selectedProfile = 0;
-      #else
-        applyHardwareProfile();
-      #endif
-    }
-
-    void init() override {
+    // Isolated internal initialization routine completely clear of virtual override blocks
+    void initializeHardware() {
       if (initDone) return;
 
       if (pinMosi >= 0) {
@@ -105,6 +89,26 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
 
       initDone = true;
+    }
+
+  public:
+    void setup() override {
+      #ifdef TFT_WIDTH
+        displayWidth = (uint16_t)TFT_WIDTH;
+        displayHeight = (uint16_t)TFT_HEIGHT;
+        pinMosi = (int8_t)TFT_MOSI;
+        pinSclk = (int8_t)TFT_SCLK;
+        pinCs   = (int8_t)TFT_CS;
+        pinDc   = (int8_t)TFT_DC;
+        pinRst  = (int8_t)TFT_RST;
+        pinBl   = (int8_t)TFT_BL;
+        selectedProfile = 0;
+      #else
+        applyHardwareProfile();
+      #endif
+
+      // Safely spawn the drivers directly within the core native lifecycle hook
+      initializeHardware();
     }
 
     void handleOverlayDraw() override {
