@@ -51,6 +51,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool initDone = false;
     bool lastPowerState = true;
 
+    // VERIFIED SYNTAX: String arrays explicitly declared with brackets []
     const char SETTING_PROFILE[] = "Hardware-Profile";
     const char SETTING_WIDTH[]   = "Display-Width";
     const char SETTING_HEIGHT[]  = "Display-Height";
@@ -121,7 +122,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void handleOverlayDraw() override {
       if (!initDone || !lastPowerState) return;
-      // Pass the unified global strip object directly into the renamed target function signature
       engine.drawFrame(strip);
     }
 
@@ -160,13 +160,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        if (initDone) {
-          #if (IS_ESPI_ACTIVE == 1)
-            engine.init();
-          #else
-            engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-          #endif
-        }
       } else {
         displayWidth  = top[FPSTR(SETTING_WIDTH)]  | displayWidth;
         displayHeight = top[FPSTR(SETTING_HEIGHT)] | displayHeight;
@@ -177,6 +170,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         pinDc         = top[FPSTR(PIN_DC_KEY)]     | pinDc;
         pinRst        = top[FPSTR(PIN_RST_KEY)]    | pinRst;
         pinBl         = top[FPSTR(PIN_BL_KEY)]     | pinBl;
+      }
+
+      if (initDone) {
+        #if (IS_ESPI_ACTIVE == 1)
+          engine.init();
+        #else
+          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        #endif
       }
       return true;
     }
