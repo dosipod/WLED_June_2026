@@ -24,14 +24,14 @@
   #define IS_ESPI_ACTIVE 0
 #endif
 
-// WLED STANDARD DEFINITIONS FOR USERMOD CONFIGURATION STRINGS
+// FIXED USERMOD PARAMETER KEYS DEFINITIONS
 #define SETTING_PROFILE "Hardware-Profile"
 #define SETTING_WIDTH   "Display-Width"
 #define SETTING_HEIGHT  "Display-Height"
 #define SETTING_OFFSET  "Column-Offset"
 #define PIN_MOSI_KEY    "Pin-MOSI"
 #define PIN_SCLK_KEY    "Pin-SCLK"
-#define PIN_CS_KEY      = "Pin-CS"
+#define PIN_CS_KEY      "Pin-CS"
 #define PIN_DC_KEY      "Pin-DC"
 #define PIN_RST_KEY     "Pin-RST"
 #define PIN_BL_KEY      "Pin-Backlight"
