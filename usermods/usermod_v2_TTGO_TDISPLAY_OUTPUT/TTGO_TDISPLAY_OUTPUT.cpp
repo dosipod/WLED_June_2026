@@ -50,7 +50,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool initDone = false;
     bool lastPowerState = true;
 
-    // FIXED: Added array braces [] to ensure correct type mapping
+    // FIXED: Appended array bracket boundaries [] to form correct constant string structures
     const char SETTING_PROFILE[] = "Hardware-Profile";
     const char SETTING_WIDTH[]   = "Display-Width";
     const char SETTING_HEIGHT[]  = "Display-Height";
@@ -162,7 +162,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
-        // Robust explicit type parsing matching your exact JSON key configurations
         if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = top[FPSTR(SETTING_WIDTH)].as<int>();
         if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = top[FPSTR(SETTING_HEIGHT)].as<int>();
         if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = top[FPSTR(SETTING_OFFSET)].as<int>();
