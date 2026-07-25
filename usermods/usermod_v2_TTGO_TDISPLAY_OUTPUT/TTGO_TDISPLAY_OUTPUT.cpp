@@ -1,76 +1,203 @@
-#ifndef LCD_AS_OUTPUT_GFX_ENGINE_H
-#define LCD_AS_OUTPUT_GFX_ENGINE_H
+#include "wled.h"
 
-#if __has_include(<Arduino_GFX_Library.h>)
-#include <Arduino_GFX_Library.h>
+#ifdef BLACK
+  #undef BLACK
+#endif
+#ifdef BLUE
+  #undef BLUE
+#endif
+#ifdef GREEN
+  #undef GREEN
+#endif
+#ifdef RED
+  #undef RED
+#endif
+#ifdef WHITE
+  #undef WHITE
+#endif
 
-class LcdGfxEngine {
+#include "lcd_as_output_espi_engine.h"
+#include "lcd_as_output_gfx_engine.h"
+
+#if __has_include(<TFT_eSPI.h>) && (defined(USER_SETUP_LOADED) || defined(TFT_CS))
+  #define IS_ESPI_ACTIVE 1
+#else
+  #define IS_ESPI_ACTIVE 0
+#endif
+
+class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    Arduino_DataBus* bus = nullptr;
-    Arduino_GFX* gfx = nullptr;
-    uint16_t blocksW = 0, blocksH = 0;
-    uint16_t canvasW = 0, canvasH = 0;
-    uint16_t blockWidth = 1, blockHeight = 1;
-    bool isInit = false;
+    #if (IS_ESPI_ACTIVE == 1)
+      LcdTfteSpiEngine engine;
+      const int activeDriverMode = 0;
+    #else
+      LcdGfxEngine engine;
+      const int activeDriverMode = 1;
+    #endif
+
+    int selectedProfile = 1; 
+
+    int displayWidth = 320;
+    int displayHeight = 170;
+    int colOffset = 35;
+    
+    int pinMosi = -1;
+    int pinSclk = -1;
+    int pinCs   = -1;
+    int pinDc   = -1;
+    int pinRst  = -1;
+    int pinBl   = -1;
+
+    bool initDone = false;
+    bool lastPowerState = true;
+
+    const char SETTING_PROFILE[] = "Hardware-Profile";
+    const char SETTING_WIDTH[]   = "Display-Width";
+    const char SETTING_HEIGHT[]  = "Display-Height";
+    const char SETTING_OFFSET[]  = "Column-Offset";
+    const char PIN_MOSI_KEY[]    = "Pin-MOSI";
+    const char PIN_SCLK_KEY[]    = "Pin-SCLK";
+    const char PIN_CS_KEY[]      = "Pin-CS";
+    const char PIN_DC_KEY[]      = "Pin-DC";
+    const char PIN_RST_KEY[]     = "Pin-RST";
+    const char PIN_BL_KEY[]      = "Pin-Backlight";
+
+    void applyHardwareProfile() {
+      if (selectedProfile == 1) { 
+        displayWidth  = 320;
+        displayHeight = 170;
+        colOffset     = 35;
+        pinMosi       = 13;
+        pinSclk       = 12;
+        pinCs         = 10;
+        pinDc         = 11;
+        pinRst        = 1;
+        pinBl         = 14;
+      }
+    }
 
   public:
-    void init(int8_t mosi, int8_t sclk, int8_t cs, int8_t dc, int8_t rst, uint16_t w, uint16_t h, int16_t colOffset) {
-      if (gfx) { delete gfx; gfx = nullptr; }
-      if (bus) { delete bus; bus = nullptr; }
-      isInit = false;
-
-      if (mosi < 0 || sclk < 0 || cs < 0 || dc < 0 || rst < 0) return;
-
-      bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
-      gfx = new Arduino_ST7789(bus, rst, 1, true, h, w, colOffset, 0, colOffset, 0);
-      gfx->begin();
-      gfx->fillScreen(RGB565_BLACK);
-      isInit = true;
+    void setup() override {
+      // Step 1: Ingest platformio.ini compile-time overrides if they exist
+      #ifdef TFT_WIDTH
+        displayWidth = TFT_WIDTH;
+        displayHeight = TFT_HEIGHT;
+        pinMosi = TFT_MOSI;
+        pinSclk = TFT_SCLK;
+        pinCs   = TFT_CS;
+        pinDc   = TFT_DC;
+        pinRst  = TFT_RST;
+        pinBl = TFT_BL;
+        selectedProfile = 0;
+      #else
+        applyHardwareProfile();
+      #endif
     }
 
-    void clear() {
-      if (isInit && gfx) gfx->fillScreen(RGB565_BLACK);
-    }
+    // Step 2: WLED Native Configuration Initialization Hook
+    // This executes EXACTLY once per boot, right after /cfg.json is fully loaded into memory.
+    // It runs completely clear of real-time threads, protecting the MCU from watchdog panics.
+    void init() override {
+      if (initDone) return;
 
-    void drawFrame(WS2812FX& strip) {
-      if (!isInit || !gfx || !strip.isMatrix) return;
-      
-      Segment& seg = strip.getSegment(0);
-      uint16_t segW = seg.width();
-      uint16_t segH = seg.height();
-      if (segW == 0 || segH == 0) return;
-
-      if (segW != blocksW || segH != blocksH) {
-        blocksW = segW;
-        blocksH = segH;
-        canvasW = gfx->width();
-        canvasH = gfx->height();
-        blockWidth  = canvasW / blocksW;
-        blockHeight = canvasH / blocksH;
-        if (blockWidth == 0)  blockWidth  = 1;
-        if (blockHeight == 0) blockHeight = 1;
-        gfx->fillScreen(RGB565_BLACK);
-      }
-
-      gfx->startWrite();
-      for (int h = 0; h < blocksH; h++) {
-        uint16_t py = h * blockHeight;
-        for (int w = 0; w < blocksW; w++) {
-          uint32_t c = strip.getPixelColor(seg.start + w + h * seg.width());
-          uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          gfx->writeFillRect(w * blockWidth, py, blockWidth, blockHeight, color16);
+      if (pinMosi >= 0) {
+        int8_t pinsToAllocate[] = { (int8_t)pinMosi, (int8_t)pinSclk, (int8_t)pinCs, (int8_t)pinDc, (int8_t)pinRst, (int8_t)pinBl };
+        for (uint8_t i = 0; i < 6; i++) {
+          if (pinsToAllocate[i] >= 0) {
+            PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
+          }
         }
       }
-      gfx->endWrite();
+
+      if (pinBl >= 0) {
+        pinMode(pinBl, OUTPUT);
+        digitalWrite(pinBl, HIGH);
+      }
+
+      #if (IS_ESPI_ACTIVE == 1)
+        engine.init();
+      #else
+        engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+      #endif
+
+      initDone = true;
+    }
+
+    void handleOverlayDraw() override {
+      if (!initDone || !lastPowerState) return;
+      engine.drawFrame(strip);
+    }
+
+    void loop() override {
+      if (!initDone) return;
+      bool currentPowerState = (bri > 0);
+      if (currentPowerState != lastPowerState) {
+        lastPowerState = currentPowerState;
+        if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
+        if (!lastPowerState) {
+          engine.clear();
+        }
+      }
+    }
+
+    void addToConfig(JsonObject& root) override {
+      JsonObject top = root.createNestedObject(F("DisplayMatrix"));
+      top[FPSTR(SETTING_PROFILE)] = selectedProfile; 
+      top[FPSTR(SETTING_WIDTH)]  = displayWidth;
+      top[FPSTR(SETTING_HEIGHT)] = displayHeight;
+      top[FPSTR(SETTING_OFFSET)] = colOffset;
+      top[FPSTR(PIN_MOSI_KEY)]   = pinMosi;
+      top[FPSTR(PIN_SCLK_KEY)]   = pinSclk;
+      top[FPSTR(PIN_CS_KEY)]     = pinCs;
+      top[FPSTR(PIN_DC_KEY)]     = pinDc;
+      top[FPSTR(PIN_RST_KEY)]    = pinRst;
+      top[FPSTR(PIN_BL_KEY)]     = pinBl;
+    }
+
+    bool readFromConfig(JsonObject& root) override {
+      JsonObject top = root[F("DisplayMatrix")];
+      if (top.isNull()) return false;
+
+      int oldProfile = selectedProfile;
+      selectedProfile = top[FPSTR(SETTING_PROFILE)] | selectedProfile;
+
+      if (selectedProfile != oldProfile && selectedProfile > 0) {
+        applyHardwareProfile();
+        // Re-route parameters safely through the isolated configuration lifecycle hook
+        if (initDone) {
+          #if (IS_ESPI_ACTIVE == 1)
+            engine.init();
+          #else
+            engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+          #endif
+        }
+      } else {
+        displayWidth  = top[FPSTR(SETTING_WIDTH)]  | displayWidth;
+        displayHeight = top[FPSTR(SETTING_HEIGHT)] | displayHeight;
+        colOffset     = top[FPSTR(SETTING_OFFSET)] | colOffset;
+        pinMosi       = top[FPSTR(PIN_MOSI_KEY)]   | pinMosi;
+        pinSclk       = top[FPSTR(PIN_SCLK_KEY)]   | pinSclk;
+        pinCs         = top[FPSTR(PIN_CS_KEY)]     | pinCs;
+        pinDc         = top[FPSTR(PIN_DC_KEY)]     | pinDc;
+        pinRst        = top[FPSTR(PIN_RST_KEY)]    | pinRst;
+        pinBl         = top[FPSTR(PIN_BL_KEY)]     | pinBl;
+      }
+      return true;
+    }
+
+    void addToJsonState(JsonObject& root) override {
+      JsonObject top = root.createNestedObject("TTGO_Display");
+      top["active"] = initDone;
+    }
+
+    uint16_t getId() override {
+      #ifdef USERMOD_ID_TTGO_TDISPLAY_OUTPUT
+        return USERMOD_ID_TTGO_TDISPLAY_OUTPUT;
+      #else
+        return USERMOD_ID_UNSPECIFIED;
+      #endif
     }
 };
-#else
-class LcdGfxEngine {
-  public:
-    void init(int8_t mosi, int8_t sclk, int8_t cs, int8_t dc, int8_t rst, uint16_t w, uint16_t h, int16_t colOffset) {}
-    void clear() {}
-    void drawFrame(WS2812FX& strip) {}
-};
-#endif
 
-#endif
+static TTGO_TDISPLAY_OUTPUT ttgo_display_mod;
+REGISTER_USERMOD(ttgo_display_mod);
