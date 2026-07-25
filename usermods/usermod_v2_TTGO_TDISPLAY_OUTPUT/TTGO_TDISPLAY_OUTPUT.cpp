@@ -64,7 +64,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
     }
 
-    // Isolated internal initialization routine completely clear of virtual override blocks
     void initializeHardware() {
       if (initDone) return;
 
@@ -106,8 +105,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #else
         applyHardwareProfile();
       #endif
+    }
 
-      // Safely spawn the drivers directly within the core native lifecycle hook
+    // WLED standard asynchronous background connection lifecycle hook.
+    // Fires safely outside the real-time blocking loops after OTA and server resources are active.
+    void connected() override {
       initializeHardware();
     }
 
