@@ -1,8 +1,9 @@
 name: WLED CI
 
-# 1. Completely replace your current "on:" block with this:
 on:
   workflow_dispatch:
 
 jobs:
-  # The remaining code for the jobs calling your build.yml template stays exactly the same below...
+  run-wled-ci:
+    name: Run WLED CI/CD
+    uses: ./.github/workflows/build.yml
