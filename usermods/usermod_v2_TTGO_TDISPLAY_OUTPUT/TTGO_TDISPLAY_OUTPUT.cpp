@@ -16,12 +16,11 @@
   #undef WHITE
 #endif
 
-#include "lcd_as_output_espi_engine.h"
-#include "lcd_as_output_gfx_engine.h"
-
-#if __has_include(<TFT_eSPI.h>) && (defined(USER_SETUP_LOADED) || defined(TFT_CS))
+#if defined(USER_SETUP_LOADED) || defined(TFT_CS)
+  #include "lcd_as_output_espi_engine.h"
   #define IS_ESPI_ACTIVE 1
 #else
+  #include "lcd_as_output_gfx_engine.h"
   #define IS_ESPI_ACTIVE 0
 #endif
 
@@ -51,17 +50,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool initDone = false;
     bool lastPowerState = true;
 
-    // Fixed array boundaries added cleanly
-    const char SETTING_PROFILE[17] = "Hardware-Profile";
-    const char SETTING_WIDTH[14]   = "Display-Width";
-    const char SETTING_HEIGHT[15]  = "Display-Height";
-    const char SETTING_OFFSET[14]  = "Column-Offset";
-    const char PIN_MOSI_KEY[9]     = "Pin-MOSI";
-    const char PIN_SCLK_KEY[9]     = "Pin-SCLK";
-    const char PIN_CS_KEY[7]       = "Pin-CS";
-    const char PIN_DC_KEY[7]       = "Pin-DC";
-    const char PIN_RST_KEY[8]      = "Pin-RST";
-    const char PIN_BL_KEY[14]      = "Pin-Backlight";
+    const char SETTING_PROFILE[] = "Hardware-Profile";
+    const char SETTING_WIDTH[]   = "Display-Width";
+    const char SETTING_HEIGHT[]  = "Display-Height";
+    const char SETTING_OFFSET[]  = "Column-Offset";
+    const char PIN_MOSI_KEY[]    = "Pin-MOSI";
+    const char PIN_SCLK_KEY[]    = "Pin-SCLK";
+    const char PIN_CS_KEY[]      = "Pin-CS";
+    const char PIN_DC_KEY[]      = "Pin-DC";
+    const char PIN_RST_KEY[]     = "Pin-RST";
+    const char PIN_BL_KEY[]      = "Pin-Backlight";
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -161,15 +159,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
-        displayWidth  = top[FPSTR(SETTING_WIDTH)]  | displayWidth;
-        displayHeight = top[FPSTR(SETTING_HEIGHT)] | displayHeight;
-        colOffset     = top[FPSTR(SETTING_OFFSET)] | colOffset;
-        pinMosi       = top[FPSTR(PIN_MOSI_KEY)]   | pinMosi;
-        pinSclk       = top[FPSTR(PIN_SCLK_KEY)]   | pinSclk;
-        pinCs         = top[FPSTR(PIN_CS_KEY)]     | pinCs;
-        pinDc         = top[FPSTR(PIN_DC_KEY)]     | pinDc;
-        pinRst        = top[FPSTR(PIN_RST_KEY)]    | pinRst;
-        pinBl         = top[FPSTR(PIN_BL_KEY)]     | pinBl;
+        // Safe configuration parsing using fallback OR assignments instead of bitwise markers
+        displayWidth  = top[FPSTR(SETTING_WIDTH)]  || displayWidth;
+        displayHeight = top[FPSTR(SETTING_HEIGHT)] || displayHeight;
+        colOffset     = top[FPSTR(SETTING_OFFSET)] || colOffset;
+        pinMosi       = top[FPSTR(PIN_MOSI_KEY)]   || pinMosi;
+        pinSclk       = top[FPSTR(PIN_SCLK_KEY)]   || pinSclk;
+        pinCs         = top[FPSTR(PIN_CS_KEY)]     || pinCs;
+        pinDc         = top[FPSTR(PIN_DC_KEY)]     || pinDc;
+        pinRst        = top[FPSTR(PIN_RST_KEY)]    || pinRst;
+        pinBl         = top[FPSTR(PIN_BL_KEY)]     || pinBl;
       }
 
       if (initDone) {
