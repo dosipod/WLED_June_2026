@@ -50,16 +50,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool initDone = false;
     bool lastPowerState = true;
 
-    const char SETTING_PROFILE[] = "Hardware-Profile";
-    const char SETTING_WIDTH[]   = "Display-Width";
-    const char SETTING_HEIGHT[]  = "Display-Height";
-    const char SETTING_OFFSET[]  = "Column-Offset";
-    const char PIN_MOSI_KEY[]    = "Pin-MOSI";
-    const char PIN_SCLK_KEY[]    = "Pin-SCLK";
-    const char PIN_CS_KEY[]      = "Pin-CS";
-    const char PIN_DC_KEY[]      = "Pin-DC";
-    const char PIN_RST_KEY[]     = "Pin-RST";
-    const char PIN_BL_KEY[]      = "Pin-Backlight";
+    const char SETTING_PROFILE[17] = "Hardware-Profile";
+    const char SETTING_WIDTH[14]   = "Display-Width";
+    const char SETTING_HEIGHT[15]  = "Display-Height";
+    const char SETTING_OFFSET[14]  = "Column-Offset";
+    const char PIN_MOSI_KEY[9]     = "Pin-MOSI";
+    const char PIN_SCLK_KEY[9]     = "Pin-SCLK";
+    const char PIN_CS_KEY[7]       = "Pin-CS";
+    const char PIN_DC_KEY[7]       = "Pin-DC";
+    const char PIN_RST_KEY[8]      = "Pin-RST";
+    const char PIN_BL_KEY[14]      = "Pin-Backlight";
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -161,7 +161,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
       } else {
-        // EXPLICIT STRUCTURAL CASTING: Eliminates variable narrowing mismatch loops completely
         if (top[FPSTR(SETTING_WIDTH)].is<int>())   displayWidth  = (uint16_t)top[FPSTR(SETTING_WIDTH)].as<int>();
         if (top[FPSTR(SETTING_HEIGHT)].is<int>())  displayHeight = (uint16_t)top[FPSTR(SETTING_HEIGHT)].as<int>();
         if (top[FPSTR(SETTING_OFFSET)].is<int>())  colOffset     = (int16_t)top[FPSTR(SETTING_OFFSET)].as<int>();
