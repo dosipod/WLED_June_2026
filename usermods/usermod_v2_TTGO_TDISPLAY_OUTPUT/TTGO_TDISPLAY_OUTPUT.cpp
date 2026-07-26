@@ -20,9 +20,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
-    
-    // PRODUCTION REMEDIAL LATCH: Staggers peripheral initialization clear of boot exceptions
-    uint16_t bootFrameStagger = 0; 
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -83,7 +80,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void connected() override {
-      // Defer hardware initialization out of network callback events to protect branch structures
+      // Keep this hook fallback active for standard network connection state paths
+      initializeHardware();
     }
 
     void handleOverlayDraw() override {
@@ -92,14 +90,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
-      // NON-BLOCKING BUS DECOUPLING PROTOCOL:
-      // Postpones raw display hardware construction until the background loop ticks 500 times.
-      // This guarantees the wireless core can initialize and connect to Wi-Fi entirely unhindered.
+      // CRITICAL LOGIC CORRECTION:
+      // If the connected() hook is skipped by the custom nopixelbuffer branch constraints, 
+      // safely initialize the display hardware dynamically on the very first loop cycle tick.
       if (!initDone) {
-        bootFrameStagger++;
-        if (bootFrameStagger < 500) {
-          return; // Safely yield CPU control back to WLED's network stack task loops
-        }
         initializeHardware();
       }
 
@@ -145,7 +139,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           hw = nullptr;
         }
         initDone = false; 
-        bootFrameStagger = 0;
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
