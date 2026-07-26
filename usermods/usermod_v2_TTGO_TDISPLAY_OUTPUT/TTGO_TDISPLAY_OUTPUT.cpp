@@ -1,12 +1,9 @@
 #include "wled.h"
-
-// Forward declaration of an untyped wrapper pointer to bypass flash memory tracking loops at boot
-class DisplayWrapper;
+#include "display_wrapper.h"
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    // PURE ARCHITECTURAL ISOLATION: Zero third-party display library headers are included here.
-    // This allows WLED to allocate its internal LED strip pixel buffers with zero register conflicts.
+    // Safe Pointer Storage: Disconnects deep sub-constructors from running inside early static boot scopes
     DisplayWrapper* hw = nullptr;
 
     int selectedProfile = 1; 
@@ -56,9 +53,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // Late Inclusions Protocol: Pull the wrapper definition into memory safely long after boot concludes
-      #include "display_wrapper.h"
-      
       hw = new DisplayWrapper();
       if (hw) {
         hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
@@ -86,13 +80,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
-    // Fire driver instantiation safely inside the asynchronous network handler loop window
     void connected() override {
       initializeHardware();
     }
 
     void handleOverlayDraw() override {
-      #include "display_wrapper.h"
       if (!initDone || !lastPowerState || !hw) return;
       hw->renderFrame(strip);
     }
@@ -102,7 +94,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
-        #include "display_wrapper.h"
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
         if (!lastPowerState && hw) {
@@ -137,7 +128,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
         if (hw) {
-          #include "display_wrapper.h"
           delete hw;
           hw = nullptr;
         }
@@ -154,7 +144,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
         if (initDone && hw) {
-          #include "display_wrapper.h"
           hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
         }
       }
@@ -176,7 +165,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     ~TTGO_TDISPLAY_OUTPUT() {
       if (hw) {
-        #include "display_wrapper.h"
         delete hw;
         hw = nullptr;
       }
