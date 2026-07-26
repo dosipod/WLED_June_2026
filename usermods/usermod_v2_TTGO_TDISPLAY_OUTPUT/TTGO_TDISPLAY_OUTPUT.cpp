@@ -24,9 +24,6 @@
   #define IS_ESPI_ACTIVE 0
 #endif
 
-// SOLID CODING PRACTICE: Encapsulate heavy sub-constructor hardware engines inside 
-// an isolated conditional storage structure. This guarantees zero hardware register 
-// interception or memory allocations happen during WLED's early static boot phase.
 struct HardwareDriverContainer {
   #if (IS_ESPI_ACTIVE == 1)
     LcdTfteSpiEngine driver;
@@ -69,7 +66,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
     }
 
-    // Runs safely after file systems are verified and configuration parsing is complete
     void initializeHardware() {
       if (initDone) return;
 
@@ -87,7 +83,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // Safe Runtime Context: Allocate structural wrapper cleanly on the stack/heap bounds
       hw = new HardwareDriverContainer();
       if (hw) {
         #if (IS_ESPI_ACTIVE == 1)
@@ -125,7 +120,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
-      // Lazy-loading execution point: Runs after network stacks and web tasks are online
       if (!initDone) {
         initializeHardware();
       }
@@ -181,14 +175,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        // SOLID PARSING PROTECTION: Explicitly check if the wrapper pointer is active 
-        // before running updates. This protects initial boot parsing cycles from crashes.
+        // PRISTINE SYSTEM FIX: Safely delete the old container layout instead of calling init() twice.
+        // This stops multiple allocations, prevents memory corruption, and stops the boot loops.
         if (initDone && hw) {
-          #if (IS_ESPI_ACTIVE == 1)
-            hw->driver.init();
-          #else
-            hw->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-          #endif
+          delete hw;
+          hw = nullptr;
+          initDone = false; 
         }
       }
       return true;
