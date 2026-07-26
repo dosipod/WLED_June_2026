@@ -58,26 +58,25 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
 
-      // RESOLUTION ASPECT RATIO FIX:
-      // Instead of generic initialization, we invoke the specialized initialization mapping 
-      // parameters to force the internal registers to track exactly at a 170x320 hardware footprint.
-      // This eliminates the vertical squeezing effect immediately.
+      // FULL CONSTRUCTOR OVERRIDE:
+      // Hardcodes the specific hardware tracking dimensions (170x320) and explicit column/row
+      // offsets to clear out the top black bar and fix the stretched aspect ratio.
       gfx = new Arduino_ST7789(
         bus, 
         pinRst, 
-        0,     // Initial rotation tracking layout
-        true,  // IPS screen flag
-        170,   // Native panel physical column width
-        320,   // Native panel physical row height
-        35,    // col_offset1 mapping coordinate
-        0,     // row_offset1 mapping coordinate
-        35,    // col_offset2 mapping coordinate
-        0      // row_offset2 mapping coordinate
+        0,          // initial rotation tracking parameter
+        true,       // IPS panel flag
+        170,        // native portrait panel physical width
+        320,        // native portrait panel physical height
+        35,         // col_offset1 mapping coordinate
+        0,          // row_offset1 mapping coordinate
+        35,         // col_offset2 mapping coordinate
+        0           // row_offset2 mapping coordinate
       );
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Set canvas to correct landscape mode orientation
+        gfx->setRotation(1); // Set canvas to landscape mode orientation
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
