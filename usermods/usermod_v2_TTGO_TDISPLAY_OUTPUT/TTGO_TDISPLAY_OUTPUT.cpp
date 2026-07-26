@@ -114,19 +114,17 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
+    // SAFE RENDERING POINT: Handle overlay drawing runs on the frame execution thread 
+    // without starving background loop allocations or locking up network sockets.
     void handleOverlayDraw() override {
-      // Empty hook to bypass the custom nopixelbuffer rendering delay restrictions cleanly
+      if (!initDone || !lastPowerState || !hw) return;
+      hw->driver.drawFrame(strip);
     }
 
     void loop() override {
+      // Background Task: Only process driver structure creation safely outside of boot context
       if (!initDone) {
         initializeHardware();
-      }
-
-      // ASYNCHRONOUS FRAME RENDERING: Drive display matrices safely from background tasks 
-      // where execution cycles remain isolated from watchdog panics or thread halts
-      if (initDone && lastPowerState && hw) {
-        hw->driver.drawFrame(strip);
       }
 
       bool currentPowerState = (bri > 0);
