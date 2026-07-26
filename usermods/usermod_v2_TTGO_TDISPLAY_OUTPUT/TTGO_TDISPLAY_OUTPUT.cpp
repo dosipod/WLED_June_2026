@@ -109,16 +109,20 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
+    // WLED ASYNCHRONOUS NETWORK LIFECYCLE HOOK:
+    // Fires safely outside the real-time execution loops after the system boots, 
+    // parses config files, and mounts the Wi-Fi stack unhindered.
+    void connected() override {
+      initializeHardware();
+    }
+
     void handleOverlayDraw() override {
       if (!initDone || !lastPowerState || !engine) return;
       engine->drawFrame(strip);
     }
 
     void loop() override {
-      if (!initDone) {
-        initializeHardware();
-      }
-
+      // Safe, unblocked background processing thread loops
       if (!initDone || !engine) return;
 
       bool currentPowerState = (bri > 0);
