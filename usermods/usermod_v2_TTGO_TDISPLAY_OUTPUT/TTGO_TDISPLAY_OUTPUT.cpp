@@ -3,7 +3,6 @@
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    // Safe Pointer Storage: Disconnects deep sub-constructors from running inside early static boot scopes
     DisplayWrapper* hw = nullptr;
 
     int selectedProfile = 1; 
@@ -81,6 +80,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void connected() override {
+      // Keep this hook fallback active for standard network connection state paths
       initializeHardware();
     }
 
@@ -90,6 +90,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
+      // CRITICAL LOGIC CORRECTION:
+      // If the connected() hook is skipped by the custom nopixelbuffer branch constraints, 
+      // safely initialize the display hardware dynamically on the very first loop cycle tick.
+      if (!initDone) {
+        initializeHardware();
+      }
+
       if (!initDone || !hw) return;
 
       bool currentPowerState = (bri > 0);
