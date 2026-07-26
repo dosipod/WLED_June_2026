@@ -34,12 +34,10 @@ struct HardwareDriverContainer {
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    // CRITICAL FIX: Wrap container in a union to reserve memory footprint space 
-    // without triggering execution of sub-constructors during the early boot phase.
-    union {
-      HardwareDriverContainer hw;
-    };
-
+    // PROFESSIONAL C++ ARCHITECTURE: Reserve raw byte storage with strict 32-bit pointer alignment.
+    // This safely eliminates type system constraints on non-trivial constructors inside unions.
+    alignas(void*) uint8_t hwMemory[sizeof(HardwareDriverContainer)];
+    
     int selectedProfile = 1; 
 
     uint16_t displayWidth = 320;
@@ -55,6 +53,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
+
+    HardwareDriverContainer* getHw() {
+      return reinterpret_cast<HardwareDriverContainer*>(hwMemory);
+    }
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -87,14 +89,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // Safe Placement New: Initialises constructor properties straight into our reserved
-      // memory footprint bounds without allocating additional heap memory during the frame loops.
-      ::new (&hw) HardwareDriverContainer();
+      // Safe Placement New: Instantiates driver objects directly inside our reserved static memory
+      // footprint long after boot file mounting and Wi-Fi system allocations are complete.
+      ::new (hwMemory) HardwareDriverContainer();
 
       #if (IS_ESPI_ACTIVE == 1)
-        hw.driver.init();
+        getHw()->driver.init();
       #else
-        hw.driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        getHw()->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
       #endif
 
       initDone = true;
@@ -102,7 +104,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void destroyHardware() {
       if (!initDone) return;
-      hw.~HardwareDriverContainer();
+      getHw()->~HardwareDriverContainer();
       initDone = false;
     }
 
@@ -127,7 +129,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void handleOverlayDraw() override {
       if (!initDone || !lastPowerState) return;
-      hw.driver.drawFrame(strip);
+      getHw()->driver.drawFrame(strip);
     }
 
     void loop() override {
@@ -140,7 +142,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
         if (!lastPowerState && initDone) {
-          hw.driver.clear();
+          getHw()->driver.clear();
         }
       }
     }
