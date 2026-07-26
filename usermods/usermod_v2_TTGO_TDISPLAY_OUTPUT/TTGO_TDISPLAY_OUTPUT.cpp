@@ -26,11 +26,9 @@
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    #if (IS_ESPI_ACTIVE == 1)
-      LcdTfteSpiEngine* engine = nullptr;
-    #else
-      LcdGfxEngine* engine = nullptr;
-    #endif
+    // VOID POINTER ISOLATION: Completely hides the display engine footprints from early compiler 
+    // memory sweeps, allowing WLED to map its core LED strip pixel buffers without register panics.
+    void* engine = nullptr;
 
     int selectedProfile = 1; 
 
@@ -79,12 +77,20 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
+      // ASYNCHRONOUS BACKGROUND HEAP ALLOCATION:
+      // Instantiates drivers safely after the network stack is up and core led mapping concludes.
       #if (IS_ESPI_ACTIVE == 1)
-        engine = new LcdTfteSpiEngine();
-        if (engine) engine->init();
+        LcdTfteSpiEngine* e = new LcdTfteSpiEngine();
+        if (e) {
+          e->init();
+          engine = (void*)e;
+        }
       #else
-        engine = new LcdGfxEngine();
-        if (engine) engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        LcdGfxEngine* e = new LcdGfxEngine();
+        if (e) {
+          e->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+          engine = (void*)e;
+        }
       #endif
 
       initDone = true;
@@ -109,28 +115,34 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
-    // WLED ASYNCHRONOUS NETWORK LIFECYCLE HOOK:
-    // Fires safely outside the real-time execution loops after the system boots, 
-    // parses config files, and mounts the Wi-Fi stack unhindered.
+    // Safely fire hardware driver logic inside the asynchronous network handler.
     void connected() override {
       initializeHardware();
     }
 
     void handleOverlayDraw() override {
       if (!initDone || !lastPowerState || !engine) return;
-      engine->drawFrame(strip);
+      
+      #if (IS_ESPI_ACTIVE == 1)
+        ((LcdTfteSpiEngine*)engine)->drawFrame(strip);
+      #else
+        ((LcdGfxEngine*)engine)->drawFrame(strip);
+      #endif
     }
 
     void loop() override {
-      // Safe, unblocked background processing thread loops
       if (!initDone || !engine) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
-        if (!lastPowerState) {
-          engine->clear();
+        if (!lastPowerState && engine) {
+          #if (IS_ESPI_ACTIVE == 1)
+            ((LcdTfteSpiEngine*)engine)->clear();
+          #else
+            ((LcdGfxEngine*)engine)->clear();
+          #endif
         }
       }
     }
@@ -161,7 +173,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
         if (engine) {
-          delete engine;
+          #if (IS_ESPI_ACTIVE == 1)
+            delete ((LcdTfteSpiEngine*)engine);
+          #else
+            delete ((LcdGfxEngine*)engine);
+          #endif
           engine = nullptr;
         }
         initDone = false; 
@@ -178,9 +194,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
         if (initDone && engine) {
           #if (IS_ESPI_ACTIVE == 1)
-            engine->init();
+            ((LcdTfteSpiEngine*)engine)->init();
           #else
-            engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+            ((LcdGfxEngine*)engine)->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
           #endif
         }
       }
@@ -202,7 +218,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     ~TTGO_TDISPLAY_OUTPUT() {
       if (engine) {
-        delete engine;
+        #if (IS_ESPI_ACTIVE == 1)
+          delete ((LcdTfteSpiEngine*)engine);
+        #else
+          delete ((LcdGfxEngine*)engine);
+        #endif
         engine = nullptr;
       }
     }
