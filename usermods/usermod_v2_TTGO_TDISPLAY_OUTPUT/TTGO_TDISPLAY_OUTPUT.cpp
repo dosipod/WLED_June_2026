@@ -107,19 +107,18 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
-    // WLED standard asynchronous background connection lifecycle hook.
-    // Fires safely outside the real-time blocking loops after OTA and server resources are active.
-    void connected() override {
-      initializeHardware();
-    }
-
     void handleOverlayDraw() override {
       if (!initDone || !lastPowerState) return;
       engine.drawFrame(strip);
     }
 
     void loop() override {
-      if (!initDone) return;
+      // SAFE BACKGROUND INITIALIZATION: Spawns the display hardware lazily outside
+      // of boot cycles, keeping network, web interfaces, and OTA entirely functional.
+      if (!initDone) {
+        initializeHardware();
+      }
+
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
