@@ -55,11 +55,24 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       digitalWrite(pinBl, HIGH);
 
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
-      gfx = new Arduino_ST7789(bus, pinRst, 0 /* rotation */, true /* IPS */);
+
+      // FIXED FULL CONSTRUCTOR OVERRIDE: 
+      // Forces Arduino_GFX to explicitly map the hardware raster layers at 170x320 resolution 
+      // instead of using generic 240x240 parameters. This matches your 1.9-inch panel exactly.
+      gfx = new Arduino_ST7789(
+        bus, 
+        pinRst, 
+        0,      // initial rotation
+        true,   // ips panel flag
+        170,    // native portrait panel width
+        320,    // native portrait panel height
+        35,     // col_offset1 mapping coordinate
+        0       // row_offset1 mapping coordinate
+      );
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Standard landscape canvas mapping orientation
+        gfx->setRotation(1); // Rotate to landscape canvas mapping mode
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
@@ -89,7 +102,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        // FIXED ALIGNMENT MATH: Uses the total physical width for true edge-to-edge calculation
         blockWidth  = canvasW / blocksW;
         blockHeight = canvasH / blocksH;
         
@@ -106,7 +118,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           uint32_t c = strip.getPixelColor(w + (h * blocksW));
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
           
-          // FIXED COORDINATE RENDER: Draws relative to 0 with zero border offsets
           gfx->writeFillRect(w * blockWidth, py, blockWidth, blockHeight, color16);
         }
       }
