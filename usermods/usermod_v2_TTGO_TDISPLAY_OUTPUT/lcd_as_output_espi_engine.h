@@ -6,41 +6,52 @@
 
 class LcdTfteSpiEngine {
   private:
-    TFT_eSPI tft = TFT_eSPI();
+    // FIXED: Convert static instance to pointer to clear boot loop memory faults
+    TFT_eSPI* tft = nullptr;
     uint16_t blocksW = 0, blocksH = 0;
     uint16_t blockWidth = 1, blockHeight = 1;
     bool isInit = false;
 
   public:
     void init() {
-      tft.init();
-      tft.setRotation(1);
-      tft.fillScreen(TFT_BLACK);
-      isInit = true;
+      if (tft) { delete tft; tft = nullptr; }
+      isInit = false;
+
+      tft = new TFT_eSPI();
+      if (tft) {
+        tft->init();
+        tft->setRotation(1);
+        tft->fillScreen(TFT_BLACK);
+        isInit = true;
+      }
     }
 
     void clear() {
-      if (isInit) tft.fillScreen(TFT_BLACK);
+      if (isInit && tft) tft->fillScreen(TFT_BLACK);
     }
 
     void drawFrame(WS2812FX& fx) {
-      if (!isInit || !fx.isMatrix) return;
+      if (!isInit || !tft || !fx.isMatrix) return;
       
       Segment& seg = fx.getSegment(0);
       if (seg.width() != blocksW || seg.height() != blocksH) {
         blocksW = seg.width();
         blocksH = seg.height();
-        blockWidth  = tft.width() / blocksW;
-        blockHeight = tft.height() / blocksH;
-        tft.fillScreen(TFT_BLACK);
+        blockWidth  = tft->width() / blocksW;
+        blockHeight = tft->height() / blocksH;
+        tft->fillScreen(TFT_BLACK);
       }
 
       for (int h = 0; h < blocksH; h++) {
         for (int w = 0; w < blocksW; w++) {
           uint32_t c = fx.getPixelColor(seg.start + w + h * seg.width());
-          tft.fillRect(w * blockWidth, h * blockHeight, blockWidth, blockHeight, tft.color24to16(c));
+          tft->fillRect(w * blockWidth, h * blockHeight, blockWidth, blockHeight, tft->color24to16(c));
         }
       }
+    }
+
+    ~LcdTfteSpiEngine() {
+      if (tft) { delete tft; tft = nullptr; }
     }
 };
 #else
