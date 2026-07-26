@@ -24,12 +24,22 @@ class LcdGfxEngine {
       // Construct dynamic software data SPI bus
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
       
-      // Correct standard initialization footprint
-      gfx = new Arduino_ST7789(bus, rst, 0 /* rotation */, true /* IPS */);
+      // FIXED FULL CONSTRUCTOR: Manually feeds rotation, IPS, dimensions, and explicit column/row offsets
+      // to perfectly stretch the canvas constraints edge-to-edge across the 1.9" variant hardware.
+      gfx = new Arduino_ST7789(
+        bus, rst, 
+        1,          // rotation: 1 (Landscape)
+        true,       // ips: true
+        320,        // width
+        170,        // height
+        35,         // col_offset1
+        0,          // row_offset1
+        35,         // col_offset2
+        0           // row_offset2
+      );
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Standard landscape canvas mode
         gfx->fillScreen(RGB565_BLACK);
         isInit = true;
       }
