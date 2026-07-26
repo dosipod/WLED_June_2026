@@ -26,7 +26,6 @@
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    // DIRECT INLINE REFERENCE POINTERS: Completely avoids functional calling layer overhead
     #if (IS_ESPI_ACTIVE == 1)
       LcdTfteSpiEngine* engine = nullptr;
     #else
@@ -48,7 +47,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
-    unsigned long bootTimeDelayMarker = 0; // Async safety timer tracker
+    
+    // SAFE STAGGER COUNTER: Prevents SPI bus registration during network hooks
+    uint32_t bootFrameCounter = 0; 
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -81,7 +82,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // Safe Runtime Context: Allocate objects cleanly on a lightweight heap path
       #if (IS_ESPI_ACTIVE == 1)
         engine = new LcdTfteSpiEngine();
         if (engine) engine->init();
@@ -110,14 +110,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           applyHardwareProfile();
         }
       #endif
-
-      // Start asynchronous safety countdown snapshot at early boot
-      bootTimeDelayMarker = millis();
     }
 
     void connected() override {
-      // Retain standard connection callback hooks for standard branch tracking options
-      initializeHardware();
+      // Disconnected from network events to prevent hardware bus locks
     }
 
     void handleOverlayDraw() override {
@@ -126,12 +122,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
-      // ASYNCHRONOUS NON-BLOCKING DELAY PROTOCOL:
-      // Holds off display driver bus allocation for exactly 4 seconds post-boot.
-      // This gives WLED plenty of time to clear audio usermod anomalies, mount settings files,
-      // associate with your router, and launch its over-the-air update listener services cleanly first.
+      // NON-BLOCKING BOOT STAGGER:
+      // Delays physical display construction until the background loop executes 1500 times.
+      // This completely guarantees that Wi-Fi can initialize and connect entirely unhindered.
       if (!initDone) {
-        if (millis() - bootTimeDelayMarker < 4000) return;
+        bootFrameCounter++;
+        if (bootFrameCounter < 1500) return; 
         initializeHardware();
       }
 
@@ -154,7 +150,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       top[F("Display-Height")]   = displayHeight;
       top[F("Column-Offset")]    = colOffset;
       top[F("Pin-MOSI")]         = pinMosi;
-      top[F("Pin-SCLK")]         = pinSclk;
+      top[F;("Pin-SCLK")]        = pinSclk;
       top[F("Pin-CS")]           = pinCs;
       top[F("Pin-DC")]           = pinDc;
       top[F("Pin-RST")]          = pinRst;
@@ -176,7 +172,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           delete engine;
           engine = nullptr;
         }
-        initDone = false; 
+        initDone = false;
+        bootFrameCounter = 0;
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -188,12 +185,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        // PRISTINE ISOLATION FIX: Never trigger driver hardware operations inside config cycles.
-        // We set initDone to false to let our safe background timer loop handle reconfiguration.
         if (initDone && engine) {
           delete engine;
           engine = nullptr;
           initDone = false;
+          bootFrameCounter = 0;
         }
       }
       return true;
