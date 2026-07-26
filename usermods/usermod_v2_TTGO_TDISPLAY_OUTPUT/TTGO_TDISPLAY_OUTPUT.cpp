@@ -27,8 +27,26 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t blocksW = 0;
     uint16_t blocksH = 0;
     
-    const uint16_t targetWidth = 320;
-    const uint16_t targetHeight = 170;
+    // VERIFIED DYNAMIC ENVIRONMENT ASSIGNMENTS:
+    // Pulls constraints directly out of your platformio.ini environment settings if declared,
+    // otherwise defaults back safely to the pristine 1.9" panel metrics.
+    #ifdef TFT_WIDTH
+      const uint16_t targetWidth = (uint16_t)TFT_WIDTH;
+    #else
+      const uint16_t targetWidth = 320;
+    #endif
+
+    #ifdef TFT_HEIGHT
+      const uint16_t targetHeight = (uint16_t)TFT_HEIGHT;
+    #else
+      const uint16_t targetHeight = 170;
+    #endif
+
+    #ifdef TFT_OFFSET
+      const int16_t fallbackOffset = (int16_t)TFT_OFFSET;
+    #else
+      const int16_t fallbackOffset = 35;
+    #endif
     
     uint16_t blockWidth = 1;
     uint16_t blockHeight = 1;
@@ -39,12 +57,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void initializeDisplay() {
       if (initDone) return;
 
-      int8_t pinMosi = 13;
-      int8_t pinSclk = 12;
-      int8_t pinCs   = 10;
-      int8_t pinDc   = 11;
-      int8_t pinRst  = 1;
-      int8_t pinBl   = 14;
+      // Dynamic pin mapping fallback parameters
+      #if defined(TFT_MOSI) && defined(TFT_SCLK) && defined(TFT_CS) && defined(TFT_DC) && defined(TFT_RST) && defined(TFT_BL)
+        int8_t pinMosi = (int8_t)TFT_MOSI;
+        int8_t pinSclk = (int8_t)TFT_SCLK;
+        int8_t pinCs   = (int8_t)TFT_CS;
+        int8_t pinDc   = (int8_t)TFT_DC;
+        int8_t pinRst  = (int8_t)TFT_RST;
+        int8_t pinBl   = (int8_t)TFT_BL;
+      #else
+        int8_t pinMosi = 13;
+        int8_t pinSclk = 12;
+        int8_t pinCs   = 10;
+        int8_t pinDc   = 11;
+        int8_t pinRst  = 1;
+        int8_t pinBl   = 14;
+      #endif
 
       PinManager::allocatePin(pinMosi, false, PinOwner::UM_Unspecified);
       PinManager::allocatePin(pinSclk, false, PinOwner::UM_Unspecified);
@@ -58,25 +86,36 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
 
-      // FULL CONSTRUCTOR OVERRIDE:
-      // Hardcodes the specific hardware tracking dimensions (170x320) and explicit column/row
-      // offsets to clear out the top black bar and fix the stretched aspect ratio.
+      // UNIFIED CROSS-PLATFORM CONSTRUCTOR:
+      // Dynamically flips or registers row/column offsets to look at your environment parameters.
+      // To correctly map a standard TTGO panel (which rotates opposite to the 1.9"), we compute 
+      // the portrait matrix layout dynamically based on targeted resolution boundaries.
+      uint16_t constructorWidth  = (targetWidth > targetHeight) ? targetHeight : targetWidth;
+      uint16_t constructorHeight = (targetWidth > targetHeight) ? targetWidth  : targetHeight;
+
       gfx = new Arduino_ST7789(
         bus, 
         pinRst, 
-        0,          // initial rotation tracking parameter
-        true,       // IPS panel flag
-        170,        // native portrait panel physical width
-        320,        // native portrait panel physical height
-        35,         // col_offset1 mapping coordinate
-        0,          // row_offset1 mapping coordinate
-        35,         // col_offset2 mapping coordinate
-        0           // row_offset2 mapping coordinate
+        0,                 // initial rotation tracking parameter
+        true,              // IPS panel flag
+        constructorWidth,  // physical native panel column width
+        constructorHeight, // physical native panel row height
+        fallbackOffset,    // col_offset1 mapping coordinate
+        0,                 // row_offset1 mapping coordinate
+        fallbackOffset,    // col_offset2 mapping coordinate
+        0                  // row_offset2 mapping coordinate
       );
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Set canvas to landscape mode orientation
+        
+        // Match rotation configurations based on macro presence strings
+        #ifdef TFT_ROTATION
+          gfx->setRotation(TFT_ROTATION);
+        #else
+          gfx->setRotation(1); 
+        #endif
+        
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
@@ -132,7 +171,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
-        int8_t pinBl = 14;
+        
+        #ifdef TFT_BL
+          int8_t pinBl = (int8_t)TFT_BL;
+        #else
+          int8_t pinBl = 14;
+        #endif
+        
         digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
         if (!lastPowerState) {
           gfx->fillScreen(RGB565_BLACK);
