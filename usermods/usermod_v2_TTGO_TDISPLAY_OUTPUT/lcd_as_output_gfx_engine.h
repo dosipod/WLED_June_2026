@@ -21,11 +21,15 @@ class LcdGfxEngine {
 
       if (mosi < 0 || sclk < 0 || cs < 0 || dc < 0 || rst < 0) return;
 
+      // Construct dynamic software data SPI bus
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
-      gfx = new Arduino_ST7789(bus, rst, 1, true, h, w, colOffset, 0, colOffset, 0);
+      
+      // Correct standard initialization footprint
+      gfx = new Arduino_ST7789(bus, rst, 0 /* rotation */, true /* IPS */);
       
       if (gfx) {
         gfx->begin();
+        gfx->setRotation(1); // Standard landscape canvas mode
         gfx->fillScreen(RGB565_BLACK);
         isInit = true;
       }
@@ -48,10 +52,13 @@ class LcdGfxEngine {
         blocksH = segH;
         canvasW = gfx->width();
         canvasH = gfx->height();
+        
         blockWidth  = canvasW / blocksW;
         blockHeight = canvasH / blocksH;
+        
         if (blockWidth == 0)  blockWidth  = 1;
         if (blockHeight == 0) blockHeight = 1;
+        
         gfx->fillScreen(RGB565_BLACK);
       }
 
