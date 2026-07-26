@@ -27,8 +27,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t blocksW = 0;
     uint16_t blocksH = 0;
     
-    // STRICT RESOLUTION MAP LOCKS: Forcing the hardware coordinate matrix system
-    // to map to your exact landscape bounds to stop the internal driver zooming.
     const uint16_t targetWidth = 320;
     const uint16_t targetHeight = 170;
     
@@ -60,12 +58,26 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
 
-      // Safe Standard 4-Argument Blueprint initialization structure
-      gfx = new Arduino_ST7789(bus, pinRst, 0 /* rotation */, true /* IPS */);
+      // RESOLUTION ASPECT RATIO FIX:
+      // Instead of generic initialization, we invoke the specialized initialization mapping 
+      // parameters to force the internal registers to track exactly at a 170x320 hardware footprint.
+      // This eliminates the vertical squeezing effect immediately.
+      gfx = new Arduino_ST7789(
+        bus, 
+        pinRst, 
+        0,     // Initial rotation tracking layout
+        true,  // IPS screen flag
+        170,   // Native panel physical column width
+        320,   // Native panel physical row height
+        35,    // col_offset1 mapping coordinate
+        0,     // row_offset1 mapping coordinate
+        35,    // col_offset2 mapping coordinate
+        0      // row_offset2 mapping coordinate
+      );
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Set to horizontal landscape orientation
+        gfx->setRotation(1); // Set canvas to correct landscape mode orientation
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
@@ -93,8 +105,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         blocksW = segW;
         blocksH = segH;
         
-        // RE-ENGINEERED SCALING MATH: Forces calculation against hardcoded 320x170 specs 
-        // to shrink the coordinate block bounds back down to their true size.
         blockWidth  = targetWidth / blocksW;
         blockHeight = targetHeight / blocksH;
         
@@ -111,7 +121,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           uint32_t c = strip.getPixelColor(w + (h * blocksW));
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
           
-          // EXACT POSITION CONTEXT: Outputs directly into the true landscape mapping boundaries
           gfx->writeFillRect(w * blockWidth, py, blockWidth, blockHeight, color16);
         }
       }
