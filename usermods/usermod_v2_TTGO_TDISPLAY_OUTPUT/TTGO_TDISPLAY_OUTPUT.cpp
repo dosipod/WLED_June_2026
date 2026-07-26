@@ -26,8 +26,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     
     uint16_t blocksW = 0;
     uint16_t blocksH = 0;
-    uint16_t canvasW = 0;
-    uint16_t canvasH = 0;
+    
+    // STRICT RESOLUTION MAP LOCKS: Forcing the hardware coordinate matrix system
+    // to map to your exact landscape bounds to stop the internal driver zooming.
+    const uint16_t targetWidth = 320;
+    const uint16_t targetHeight = 170;
+    
     uint16_t blockWidth = 1;
     uint16_t blockHeight = 1;
     
@@ -56,23 +60,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
 
-      // FIXED FULL CONSTRUCTOR OVERRIDE: 
-      // Forces Arduino_GFX to explicitly map the hardware raster layers at 170x320 resolution 
-      // instead of using generic 240x240 parameters. This matches your 1.9-inch panel exactly.
-      gfx = new Arduino_ST7789(
-        bus, 
-        pinRst, 
-        0,      // initial rotation
-        true,   // ips panel flag
-        170,    // native portrait panel width
-        320,    // native portrait panel height
-        35,     // col_offset1 mapping coordinate
-        0       // row_offset1 mapping coordinate
-      );
+      // Safe Standard 4-Argument Blueprint initialization structure
+      gfx = new Arduino_ST7789(bus, pinRst, 0 /* rotation */, true /* IPS */);
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Rotate to landscape canvas mapping mode
+        gfx->setRotation(1); // Set to horizontal landscape orientation
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
@@ -99,11 +92,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (segW != blocksW || segH != blocksH) {
         blocksW = segW;
         blocksH = segH;
-        canvasW = gfx->width();
-        canvasH = gfx->height();
         
-        blockWidth  = canvasW / blocksW;
-        blockHeight = canvasH / blocksH;
+        // RE-ENGINEERED SCALING MATH: Forces calculation against hardcoded 320x170 specs 
+        // to shrink the coordinate block bounds back down to their true size.
+        blockWidth  = targetWidth / blocksW;
+        blockHeight = targetHeight / blocksH;
         
         if (blockWidth == 0)  blockWidth  = 1;
         if (blockHeight == 0) blockHeight = 1;
@@ -118,6 +111,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           uint32_t c = strip.getPixelColor(w + (h * blocksW));
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
           
+          // EXACT POSITION CONTEXT: Outputs directly into the true landscape mapping boundaries
           gfx->writeFillRect(w * blockWidth, py, blockWidth, blockHeight, color16);
         }
       }
