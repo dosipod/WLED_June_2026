@@ -11,8 +11,6 @@
   #define IS_ESPI_ACTIVE 0
 #endif
 
-// ENCAPSULATION WRAPPER: Completely isolates the heavy hardware engine compilation footprints
-// away from the main WLED class structure, protecting early boot flash and bus allocation stages.
 class DisplayWrapper {
   private:
     #if (IS_ESPI_ACTIVE == 1)
