@@ -21,21 +21,23 @@ class LcdGfxEngine {
 
       if (mosi < 0 || sclk < 0 || cs < 0 || dc < 0 || rst < 0) return;
 
-      // Construct dynamic software data SPI bus
+      // Construct dynamic software data SPI bus channel layout
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
       
-      // FIXED FULL CONSTRUCTOR: Manually feeds rotation, IPS, dimensions, and explicit column/row offsets
-      // to perfectly stretch the canvas constraints edge-to-edge across the 1.9" variant hardware.
+      // EXPLICIT FIXED TYPE SIGNATURES CONSTRUCTOR:
+      // Hardcodes typecasting directly within parameters map to guarantee 
+      // edge-to-edge alignment on the 1.9" variant panels without narrowing failures.
       gfx = new Arduino_ST7789(
-        bus, rst, 
-        1,          // rotation: 1 (Landscape)
-        true,       // ips: true
-        320,        // width
-        170,        // height
-        35,         // col_offset1
-        0,          // row_offset1
-        35,         // col_offset2
-        0           // row_offset2
+        bus, 
+        (int8_t)rst, 
+        (uint8_t)1,          // rotation: 1 (Landscape Orientation)
+        (bool)true,          // ips panel flag: true
+        (int16_t)320,        // width configuration boundary
+        (int16_t)170,        // height configuration boundary
+        (int16_t)35,         // col_offset1 mapping coordinate
+        (int16_t)0,          // row_offset1 mapping coordinate
+        (int16_t)35,         // col_offset2 mapping coordinate
+        (int16_t)0           // row_offset2 mapping coordinate
       );
       
       if (gfx) {
