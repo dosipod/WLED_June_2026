@@ -34,7 +34,11 @@ struct HardwareDriverContainer {
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    HardwareDriverContainer* hw = nullptr;
+    // CRITICAL FIX: Wrap container in a union to reserve memory footprint space 
+    // without triggering execution of sub-constructors during the early boot phase.
+    union {
+      HardwareDriverContainer hw;
+    };
 
     int selectedProfile = 1; 
 
@@ -83,16 +87,23 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      hw = new HardwareDriverContainer();
-      if (hw) {
-        #if (IS_ESPI_ACTIVE == 1)
-          hw->driver.init();
-        #else
-          hw->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-        #endif
-      }
+      // Safe Placement New: Initialises constructor properties straight into our reserved
+      // memory footprint bounds without allocating additional heap memory during the frame loops.
+      ::new (&hw) HardwareDriverContainer();
+
+      #if (IS_ESPI_ACTIVE == 1)
+        hw.driver.init();
+      #else
+        hw.driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+      #endif
 
       initDone = true;
+    }
+
+    void destroyHardware() {
+      if (!initDone) return;
+      hw.~HardwareDriverContainer();
+      initDone = false;
     }
 
   public:
@@ -114,15 +125,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
-    // SAFE RENDERING POINT: Handle overlay drawing runs on the frame execution thread 
-    // without starving background loop allocations or locking up network sockets.
     void handleOverlayDraw() override {
-      if (!initDone || !lastPowerState || !hw) return;
-      hw->driver.drawFrame(strip);
+      if (!initDone || !lastPowerState) return;
+      hw.driver.drawFrame(strip);
     }
 
     void loop() override {
-      // Background Task: Only process driver structure creation safely outside of boot context
       if (!initDone) {
         initializeHardware();
       }
@@ -131,8 +139,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
-        if (!lastPowerState && hw) {
-          hw->driver.clear();
+        if (!lastPowerState && initDone) {
+          hw.driver.clear();
         }
       }
     }
@@ -162,11 +170,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        if (hw) {
-          delete hw;
-          hw = nullptr;
-        }
-        initDone = false; 
+        destroyHardware();
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -178,10 +182,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        if (initDone && hw) {
-          delete hw;
-          hw = nullptr;
-          initDone = false; 
+        if (initDone) {
+          destroyHardware();
         }
       }
       return true;
@@ -201,10 +203,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     ~TTGO_TDISPLAY_OUTPUT() {
-      if (hw) {
-        delete hw;
-        hw = nullptr;
-      }
+      destroyHardware();
     }
 };
 
