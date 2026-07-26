@@ -59,7 +59,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); 
+        gfx->setRotation(1); // Standard landscape canvas mapping orientation
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
@@ -77,7 +77,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (!initDone || !lastPowerState || !gfx) return;
 
-      // Safe branch extraction using standard structural segments
       Segment& seg = strip.getSegment(0);
       uint16_t segW = seg.width();
       uint16_t segH = seg.height();
@@ -90,7 +89,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        blockWidth  = (canvasW - 70) / blocksW;
+        // FIXED ALIGNMENT MATH: Uses the total physical width for true edge-to-edge calculation
+        blockWidth  = canvasW / blocksW;
         blockHeight = canvasH / blocksH;
         
         if (blockWidth == 0)  blockWidth  = 1;
@@ -103,11 +103,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       for (int h = 0; h < blocksH; h++) {
         uint16_t py = h * blockHeight;
         for (int w = 0; w < blocksW; w++) {
-          // Pull color directly from the active strip layout index channel
           uint32_t c = strip.getPixelColor(w + (h * blocksW));
-          
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          gfx->writeFillRect((w * blockWidth) + 35, py, blockWidth, blockHeight, color16);
+          
+          // FIXED COORDINATE RENDER: Draws relative to 0 with zero border offsets
+          gfx->writeFillRect(w * blockWidth, py, blockWidth, blockHeight, color16);
         }
       }
       gfx->endWrite();
