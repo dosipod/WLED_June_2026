@@ -24,9 +24,6 @@
   #define IS_ESPI_ACTIVE 0
 #endif
 
-// ENCAPSULATION ARCHITECTURE: Wrap the physical drivers inside a structural container.
-// This allows the main usermod class to keep its global memory footprints completely 
-// clean at boot, protecting WLED's early network and file mounting stages.
 struct HardwareDriverContainer {
   #if (IS_ESPI_ACTIVE == 1)
     LcdTfteSpiEngine driver;
@@ -70,10 +67,43 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       }
     }
 
+    void initializeHardware() {
+      if (initDone) return;
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] >>> initializeHardware() START >>>"));
+
+      if (pinMosi >= 0) {
+        int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
+        for (uint8_t i = 0; i < 6; i++) {
+          if (pinsToAllocate[i] >= 0) {
+            PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
+          }
+        }
+      }
+
+      if (pinBl >= 0) {
+        pinMode(pinBl, OUTPUT);
+        digitalWrite(pinBl, HIGH);
+      }
+
+      hw = new HardwareDriverContainer();
+      if (hw) {
+        #if (IS_ESPI_ACTIVE == 1)
+          DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing TFT_eSPI driver..."));
+          hw->driver.init();
+        #else
+          DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing Arduino_GFX driver..."));
+          hw->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        #endif
+      }
+
+      initDone = true;
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] <<< initializeHardware() END <<<"));
+    }
+
   public:
     void setup() override {
       DEBUG_PRINTLN(F("===================================================================="));
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] SOLID CODE EMBED FOOTPRINT: v2026.07.26-STABLE-01"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] SOLID CODE EMBED FOOTPRINT: v2026.07.26-STABLE-02"));
       DEBUG_PRINTLN(F("===================================================================="));
 
       #ifdef TFT_WIDTH
@@ -91,40 +121,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         applyHardwareProfile();
       #endif
 
-      if (pinMosi >= 0) {
-        int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
-        for (uint8_t i = 0; i < 6; i++) {
-          if (pinsToAllocate[i] >= 0) {
-            PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
-          }
-        }
-      }
-
-      if (pinBl >= 0) {
-        pinMode(pinBl, OUTPUT);
-        digitalWrite(pinBl, HIGH);
-      }
-
-      // SAFE INITIALIZATION TIMING: Instantiate the container inside setup(). WLED finishes 
-      // its file system mounting and allocates its digital pixel buses right before this hook.
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Allocating structural hardware container..."));
-      hw = new HardwareDriverContainer();
-      if (hw) {
-        #if (IS_ESPI_ACTIVE == 1)
-          DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing TFT_eSPI driver layouts..."));
-          hw->driver.init();
-        #else
-          DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing Arduino_GFX driver layouts..."));
-          hw->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-        #endif
-        initDone = true;
-        DEBUG_PRINTLN(F("[UM_DisplayMatrix] Driver initialization sequence complete."));
-      } else {
-        DEBUG_PRINTLN(F("[UM_DisplayMatrix] CRITICAL ERROR: Heap depletion constructing driver container!"));
-      }
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] Passive setup parsing finished cleanly. No pins allocated early."));
     }
 
     void handleOverlayDraw() override {
+      // LAZY IN-LOOP INVOCATION: Postpones peripheral bus startup requests until 
+      // the real-time drawing framework confirms the system is fully booted and idling.
+      if (!initDone) {
+        initializeHardware();
+      }
+
       if (!initDone || !lastPowerState || !hw) return;
       hw->driver.drawFrame(strip);
     }
@@ -170,8 +176,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (hw) {
           delete hw;
           hw = nullptr;
-          initDone = false; 
         }
+        initDone = false; 
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -183,14 +189,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        // SAFE CONFIG UPDATE: Re-runs initialization inside config updates only if the pointer 
-        // has been successfully established during setup, avoiding premature boot file crashes.
         if (initDone && hw) {
-          #if (IS_ESPI_ACTIVE == 1)
-            hw->driver.init();
-          #else
-            hw->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-          #endif
+          delete hw;
+          hw = nullptr;
+          initDone = false; 
         }
       }
       return true;
