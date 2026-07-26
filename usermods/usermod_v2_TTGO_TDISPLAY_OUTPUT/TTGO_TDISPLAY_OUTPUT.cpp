@@ -16,12 +16,11 @@
   #undef WHITE
 #endif
 
-#include "lcd_as_output_espi_engine.h"
-#include "lcd_as_output_gfx_engine.h"
-
-#if __has_include(<TFT_eSPI.h>) && (defined(USER_SETUP_LOADED) || defined(TFT_CS))
+#if defined(USER_SETUP_LOADED) || defined(TFT_CS)
+  #include "lcd_as_output_espi_engine.h"
   #define IS_ESPI_ACTIVE 1
 #else
+  #include "lcd_as_output_gfx_engine.h"
   #define IS_ESPI_ACTIVE 0
 #endif
 
@@ -84,10 +83,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       #if (IS_ESPI_ACTIVE == 1)
         engine = new LcdTfteSpiEngine();
-        engine->init();
+        if (engine) engine->init();
       #else
         engine = new LcdGfxEngine();
-        engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        if (engine) engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
       #endif
 
       initDone = true;
@@ -155,6 +154,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
+        // Force engine reconstruction on background layout loop swap
+        if (initDone && engine) {
+          delete engine;
+          engine = nullptr;
+          initDone = false; 
+        }
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -165,14 +170,15 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-DC")].is<int>())           pinDc         = (int8_t)top[F("Pin-DC")].as<int>();
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
-      }
 
-      if (initDone && engine) {
-        #if (IS_ESPI_ACTIVE == 1)
-          engine->init();
-        #else
-          engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-        #endif
+        // Safe dynamic re-initialization mapping checks
+        if (initDone && engine) {
+          #if (IS_ESPI_ACTIVE == 1)
+            engine->init();
+          #else
+            engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+          #endif
+        }
       }
       return true;
     }
