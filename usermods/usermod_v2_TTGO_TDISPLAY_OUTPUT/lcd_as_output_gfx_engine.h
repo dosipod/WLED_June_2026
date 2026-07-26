@@ -26,7 +26,7 @@ class LcdGfxEngine {
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Force landscape canvas mode
+        gfx->setRotation(1); // Standard landscape orientation
         gfx->fillScreen(RGB565_BLACK);
         isInit = true;
       }
@@ -43,8 +43,9 @@ class LcdGfxEngine {
       uint16_t segW = seg.width();
       uint16_t segH = seg.height();
       
-      // BOUNDS PROTECTION: Instantly drop the frame calculation if dimensions are unassigned or empty
-      if (segW == 0 || segH == 0 || fx.getLength() == 0) return;
+      // CRITICAL STRIP LENGTH GUARD: Drop calculation instantly if dimensions are unassigned
+      int totalLedLength = fx.getLength();
+      if (segW == 0 || segH == 0 || totalLedLength == 0) return;
 
       if (segW != blocksW || segH != blocksH) {
         blocksW = segW;
@@ -52,7 +53,7 @@ class LcdGfxEngine {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        // Dynamic horizontal layout stretch mapping logic (accounts for the 35px shift edge-to-edge)
+        // Dynamic landscape boundary adjustment incorporating your 35px tracking padding offsets
         blockWidth  = (canvasW - 70) / blocksW;
         blockHeight = canvasH / blocksH;
         
@@ -62,24 +63,22 @@ class LcdGfxEngine {
         gfx->fillScreen(RGB565_BLACK);
       }
 
-      // Safe bounds extraction limit math
-      int maxPixelsCount = fx.getLength();
-
       gfx->startWrite();
       for (int h = 0; h < blocksH; h++) {
         uint16_t py = h * blockHeight;
         for (int w = 0; w < blocksW; w++) {
-          int targetPixelIndex = seg.start + w + (h * segW);
+          int pixelIndex = seg.start + w + (h * segW);
           
-          // HARD BUFFER SIZING GUARD: If the calculation references out of limits, fallback to safe black
+          // CRITICAL MEMORY PROTECTION BOUNDARY: 
+          // Completely blocks any out-of-bounds pointer reads to prevent CPU panics.
           uint32_t c = 0;
-          if (targetPixelIndex >= 0 && targetPixelIndex < maxPixelsCount) {
-            c = fx.getPixelColor(targetPixelIndex);
+          if (pixelIndex >= 0 && pixelIndex < totalLedLength) {
+            c = fx.getPixelColor(pixelIndex);
           }
           
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
           
-          // Align the render arrays perfectly by packing the 35px horizontal offset natively
+          // Pack the 35px layout shift parameters straight into coordinate mapping
           gfx->writeFillRect((w * blockWidth) + 35, py, blockWidth, blockHeight, color16);
         }
       }
