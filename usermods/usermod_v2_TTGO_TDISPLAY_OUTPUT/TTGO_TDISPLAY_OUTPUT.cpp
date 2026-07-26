@@ -124,17 +124,19 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void handleOverlayDraw() override {
-      // Lazy-load the display engine on the first real rendering call.
-      // This guarantees the network stack and system files mount without thread starvation.
-      if (!initDone) {
-        initializeHardware();
-      }
-
+      // Execute frame draw tasks strictly if initialization has cleanly finished in the background
       if (!initDone || !lastPowerState) return;
       getHw()->driver.drawFrame(strip);
     }
 
     void loop() override {
+      // NETWORK GUARD INITIALIZATION LOOP:
+      // Postpones raw physical driver setup until WLED has successfully built and opened
+      // its wireless station interfaces, network listeners, and OTA server sockets.
+      if (!initDone && interfacesInited) {
+        initializeHardware();
+      }
+
       if (!initDone) return;
 
       bool currentPowerState = (bri > 0);
