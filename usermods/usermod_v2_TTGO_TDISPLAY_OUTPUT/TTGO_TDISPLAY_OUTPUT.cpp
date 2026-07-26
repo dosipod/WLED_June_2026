@@ -34,8 +34,6 @@ struct HardwareDriverContainer {
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    // PROFESSIONAL C++ ARCHITECTURE: Reserve raw byte storage with strict 32-bit pointer alignment.
-    // This safely eliminates type system constraints on non-trivial constructors inside unions.
     alignas(void*) uint8_t hwMemory[sizeof(HardwareDriverContainer)];
     
     int selectedProfile = 1; 
@@ -89,8 +87,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // Safe Placement New: Instantiates driver objects directly inside our reserved static memory
-      // footprint long after boot file mounting and Wi-Fi system allocations are complete.
       ::new (hwMemory) HardwareDriverContainer();
 
       #if (IS_ESPI_ACTIVE == 1)
@@ -127,15 +123,20 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
+    // WLED standard asynchronous background connection lifecycle hook.
+    // Fires safely outside the real-time blocking loops after OTA and server resources are active.
+    void connected() override {
+      initializeHardware();
+    }
+
     void handleOverlayDraw() override {
       if (!initDone || !lastPowerState) return;
       getHw()->driver.drawFrame(strip);
     }
 
     void loop() override {
-      if (!initDone) {
-        initializeHardware();
-      }
+      // Keep loop completely lightweight to prevent network starvation issues
+      if (!initDone) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
