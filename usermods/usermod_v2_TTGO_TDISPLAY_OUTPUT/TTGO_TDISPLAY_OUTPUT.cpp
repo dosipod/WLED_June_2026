@@ -51,6 +51,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
+    
+    // SOLID CODING PRACTICE: Step counter to stagger peripheral bus startup requests
+    uint16_t loopCounter = 0; 
 
     HardwareDriverContainer* getHw() {
       return reinterpret_cast<HardwareDriverContainer*>(hwMemory);
@@ -124,20 +127,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void handleOverlayDraw() override {
-      // Execute frame draw tasks strictly if initialization has cleanly finished in the background
       if (!initDone || !lastPowerState) return;
       getHw()->driver.drawFrame(strip);
     }
 
     void loop() override {
-      // NETWORK GUARD INITIALIZATION LOOP:
-      // Postpones raw physical driver setup until WLED has successfully built and opened
-      // its wireless station interfaces, network listeners, and OTA server sockets.
-      if (!initDone && interfacesInited) {
-        initializeHardware();
+      // NON-BLOCKING BUS DECOUPLING PROTOCOL:
+      // Safely delays display hardware setup for 250 ticks AFTER the network stack is ready.
+      // This leaves the bus completely clear for the audio input engine to initialize first.
+      if (!initDone) {
+        if (interfacesInited) {
+          loopCounter++;
+          if (loopCounter < 250) return; // Yield thread control back to core background tasks
+          initializeHardware();
+        }
+        return;
       }
-
-      if (!initDone) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
@@ -175,6 +180,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
         destroyHardware();
+        loopCounter = 0;
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -188,6 +194,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
         if (initDone) {
           destroyHardware();
+          loopCounter = 0;
         }
       }
       return true;
