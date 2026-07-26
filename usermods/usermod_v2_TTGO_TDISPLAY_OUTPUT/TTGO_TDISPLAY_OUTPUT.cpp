@@ -105,7 +105,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         pinBl   = (int8_t)TFT_BL;
         selectedProfile = 0;
       #else
-        applyHardwareProfile();
+        // Only load fallback presets if custom environment flags aren't active
+        if (selectedProfile == 1 && displayWidth == 320 && pinMosi == -1) {
+          applyHardwareProfile();
+        }
       #endif
     }
 
@@ -115,6 +118,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
+      // Safe dynamic instantiation thread loop boundary
       if (!initDone) {
         initializeHardware();
       }
@@ -154,12 +158,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        // Force engine reconstruction on background layout loop swap
-        if (initDone && engine) {
+        // Secure teardown logic: Reset init flags to let loop handle re-allocation safely
+        if (engine) {
           delete engine;
           engine = nullptr;
-          initDone = false; 
         }
+        initDone = false; 
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -171,7 +175,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        // Safe dynamic re-initialization mapping checks
+        // Re-route re-initialization directly through a safe operational pointer check
         if (initDone && engine) {
           #if (IS_ESPI_ACTIVE == 1)
             engine->init();
