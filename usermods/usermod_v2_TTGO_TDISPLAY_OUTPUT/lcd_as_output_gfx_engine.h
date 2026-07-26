@@ -21,25 +21,12 @@ class LcdGfxEngine {
 
       if (mosi < 0 || sclk < 0 || cs < 0 || dc < 0 || rst < 0) return;
 
-      // Construct safe data SPI bus channel layout
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
-      
-      // FIXED CONSTRUCTOR LAYOUT: Initialise utilizing native portrait dimension constraints (170x320)
-      // and feed the display column offset directly into the library's official structural parameters.
-      gfx = new Arduino_ST7789(
-        bus, 
-        rst, 
-        0,           // rotation (handled dynamically via setRotation below)
-        true,        // ips panel flag
-        170,         // width: Native panel column thickness boundary
-        320,         // height: Native panel row depth boundary
-        colOffset,   // col_offset1
-        0            // row_offset1
-      );
+      gfx = new Arduino_ST7789(bus, rst, 0 /* rotation */, true /* IPS */);
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Force a landscape canvas transformation loop to map a full 320x170 pixel grid
+        gfx->setRotation(1); // Force landscape canvas mode
         gfx->fillScreen(RGB565_BLACK);
         isInit = true;
       }
@@ -55,7 +42,9 @@ class LcdGfxEngine {
       Segment& seg = fx.getSegment(0);
       uint16_t segW = seg.width();
       uint16_t segH = seg.height();
-      if (segW == 0 || segH == 0) return;
+      
+      // BOUNDS PROTECTION: Instantly drop the frame calculation if dimensions are unassigned or empty
+      if (segW == 0 || segH == 0 || fx.getLength() == 0) return;
 
       if (segW != blocksW || segH != blocksH) {
         blocksW = segW;
@@ -63,7 +52,8 @@ class LcdGfxEngine {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        blockWidth  = canvasW / blocksW;
+        // Dynamic horizontal layout stretch mapping logic (accounts for the 35px shift edge-to-edge)
+        blockWidth  = (canvasW - 70) / blocksW;
         blockHeight = canvasH / blocksH;
         
         if (blockWidth == 0)  blockWidth  = 1;
@@ -72,13 +62,25 @@ class LcdGfxEngine {
         gfx->fillScreen(RGB565_BLACK);
       }
 
+      // Safe bounds extraction limit math
+      int maxPixelsCount = fx.getLength();
+
       gfx->startWrite();
       for (int h = 0; h < blocksH; h++) {
         uint16_t py = h * blockHeight;
         for (int w = 0; w < blocksW; w++) {
-          uint32_t c = fx.getPixelColor(seg.start + w + h * seg.width());
+          int targetPixelIndex = seg.start + w + (h * segW);
+          
+          // HARD BUFFER SIZING GUARD: If the calculation references out of limits, fallback to safe black
+          uint32_t c = 0;
+          if (targetPixelIndex >= 0 && targetPixelIndex < maxPixelsCount) {
+            c = fx.getPixelColor(targetPixelIndex);
+          }
+          
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          gfx->writeFillRect(w * blockWidth, py, blockWidth, blockHeight, color16);
+          
+          // Align the render arrays perfectly by packing the 35px horizontal offset natively
+          gfx->writeFillRect((w * blockWidth) + 35, py, blockWidth, blockHeight, color16);
         }
       }
       gfx->endWrite();
