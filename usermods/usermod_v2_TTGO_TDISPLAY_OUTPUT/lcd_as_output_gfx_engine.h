@@ -21,27 +21,25 @@ class LcdGfxEngine {
 
       if (mosi < 0 || sclk < 0 || cs < 0 || dc < 0 || rst < 0) return;
 
-      // Construct dynamic software data SPI bus channel layout
+      // Construct safe data SPI bus channel layout
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
       
-      // EXPLICIT FIXED TYPE SIGNATURES CONSTRUCTOR:
-      // Hardcodes typecasting directly within parameters map to guarantee 
-      // edge-to-edge alignment on the 1.9" variant panels without narrowing failures.
+      // FIXED CONSTRUCTOR LAYOUT: Initialise utilizing native portrait dimension constraints (170x320)
+      // and feed the display column offset directly into the library's official structural parameters.
       gfx = new Arduino_ST7789(
         bus, 
-        (int8_t)rst, 
-        (uint8_t)1,          // rotation: 1 (Landscape Orientation)
-        (bool)true,          // ips panel flag: true
-        (int16_t)320,        // width configuration boundary
-        (int16_t)170,        // height configuration boundary
-        (int16_t)35,         // col_offset1 mapping coordinate
-        (int16_t)0,          // row_offset1 mapping coordinate
-        (int16_t)35,         // col_offset2 mapping coordinate
-        (int16_t)0           // row_offset2 mapping coordinate
+        rst, 
+        0,           // rotation (handled dynamically via setRotation below)
+        true,        // ips panel flag
+        170,         // width: Native panel column thickness boundary
+        320,         // height: Native panel row depth boundary
+        colOffset,   // col_offset1
+        0            // row_offset1
       );
       
       if (gfx) {
         gfx->begin();
+        gfx->setRotation(1); // Force a landscape canvas transformation loop to map a full 320x170 pixel grid
         gfx->fillScreen(RGB565_BLACK);
         isInit = true;
       }
