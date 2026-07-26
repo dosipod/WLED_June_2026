@@ -18,7 +18,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     int8_t pinRst  = -1;
     int8_t pinBl   = -1;
 
-    bool initDone = false;
+    // STRICT STAGED STATE LATCH: 
+    // 0 = Idle/Unstarted, 1 = Actively Allocating/Locked, 2 = Fully Operational
+    uint8_t initializationState = 0; 
+    
     bool lastPowerState = true;
 
     void applyHardwareProfile() {
@@ -36,7 +39,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void initializeHardware() {
-      if (initDone) return;
+      // INSTANT THREAD LOCK: Blocks re-entry immediately before any instructions execute
+      if (initializationState != 0) return;
+      initializationState = 1; // Set state to locked/initializing
 
       if (pinMosi >= 0) {
         int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
@@ -57,7 +62,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
       }
 
-      initDone = true;
+      initializationState = 2; // Set state to completed/fully active
     }
 
   public:
@@ -80,24 +85,23 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void connected() override {
-      // Keep this hook fallback active for standard network connection state paths
       initializeHardware();
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !lastPowerState || !hw) return;
+      if (initializationState != 2 || !lastPowerState || !hw) return;
       hw->renderFrame(strip);
     }
 
     void loop() override {
-      // CRITICAL LOGIC CORRECTION:
-      // If the connected() hook is skipped by the custom nopixelbuffer branch constraints, 
-      // safely initialize the display hardware dynamically on the very first loop cycle tick.
-      if (!initDone) {
+      // SAFE ISOLATED INVOCATION BOUNDARY:
+      // The state latch guarantees that the background loop cannot cause multiple allocations 
+      // or thread collisons while the hardware registers are being mapped.
+      if (initializationState == 0) {
         initializeHardware();
       }
 
-      if (!initDone || !hw) return;
+      if (initializationState != 2 || !hw) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
@@ -138,7 +142,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           delete hw;
           hw = nullptr;
         }
-        initDone = false; 
+        initializationState = 0; 
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -150,7 +154,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        if (initDone && hw) {
+        if (initializationState == 2 && hw) {
           hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
         }
       }
@@ -159,7 +163,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void addToJsonState(JsonObject& root) override {
       JsonObject top = root.createNestedObject("TTGO_Display");
-      top["active"] = initDone;
+      top["active"] = (initializationState == 2);
     }
 
     uint16_t getId() override {
