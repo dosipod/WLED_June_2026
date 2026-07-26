@@ -27,26 +27,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     uint16_t blocksW = 0;
     uint16_t blocksH = 0;
     
-    // VERIFIED DYNAMIC ENVIRONMENT ASSIGNMENTS:
-    // Pulls constraints directly out of your platformio.ini environment settings if declared,
-    // otherwise defaults back safely to the pristine 1.9" panel metrics.
-    #ifdef TFT_WIDTH
-      const uint16_t targetWidth = (uint16_t)TFT_WIDTH;
-    #else
-      const uint16_t targetWidth = 320;
-    #endif
-
-    #ifdef TFT_HEIGHT
-      const uint16_t targetHeight = (uint16_t)TFT_HEIGHT;
-    #else
-      const uint16_t targetHeight = 170;
-    #endif
-
-    #ifdef TFT_OFFSET
-      const int16_t fallbackOffset = (int16_t)TFT_OFFSET;
-    #else
-      const int16_t fallbackOffset = 35;
-    #endif
+    // NATIVE INI RESOLUTION BINDINGS:
+    // Read the landscape matrix bounds using the flipped parameters from your file configuration maps
+    const uint16_t targetWidth = (uint16_t)TFT_HEIGHT; // 320
+    const uint16_t targetHeight = (uint16_t)TFT_WIDTH; // 170
     
     uint16_t blockWidth = 1;
     uint16_t blockHeight = 1;
@@ -57,22 +41,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void initializeDisplay() {
       if (initDone) return;
 
-      // Dynamic pin mapping fallback parameters
-      #if defined(TFT_MOSI) && defined(TFT_SCLK) && defined(TFT_CS) && defined(TFT_DC) && defined(TFT_RST) && defined(TFT_BL)
-        int8_t pinMosi = (int8_t)TFT_MOSI;
-        int8_t pinSclk = (int8_t)TFT_SCLK;
-        int8_t pinCs   = (int8_t)TFT_CS;
-        int8_t pinDc   = (int8_t)TFT_DC;
-        int8_t pinRst  = (int8_t)TFT_RST;
-        int8_t pinBl   = (int8_t)TFT_BL;
-      #else
-        int8_t pinMosi = 13;
-        int8_t pinSclk = 12;
-        int8_t pinCs   = 10;
-        int8_t pinDc   = 11;
-        int8_t pinRst  = 1;
-        int8_t pinBl   = 14;
-      #endif
+      // Extract your native environment pin definitions
+      int8_t pinMosi = (int8_t)TFT_MOSI;
+      int8_t pinSclk = (int8_t)TFT_SCLK;
+      int8_t pinCs   = (int8_t)TFT_CS;
+      int8_t pinDc   = (int8_t)TFT_DC;
+      int8_t pinRst  = (int8_t)TFT_RST;
+      int8_t pinBl   = (int8_t)TFT_BL;
 
       PinManager::allocatePin(pinMosi, false, PinOwner::UM_Unspecified);
       PinManager::allocatePin(pinSclk, false, PinOwner::UM_Unspecified);
@@ -86,36 +61,32 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
 
-      // UNIFIED CROSS-PLATFORM CONSTRUCTOR:
-      // Dynamically flips or registers row/column offsets to look at your environment parameters.
-      // To correctly map a standard TTGO panel (which rotates opposite to the 1.9"), we compute 
-      // the portrait matrix layout dynamically based on targeted resolution boundaries.
-      uint16_t constructorWidth  = (targetWidth > targetHeight) ? targetHeight : targetWidth;
-      uint16_t constructorHeight = (targetWidth > targetHeight) ? targetWidth  : targetHeight;
+      // AUTOMATED OFFSET MAPPING BOUNDS:
+      // Evaluates your active -D CGRAM_OFFSET flag from your ini file. If active, it 
+      // automatically shifts display tracking by 35px to clear screen alignment errors.
+      #ifdef CGRAM_OFFSET
+        int16_t currentOffset = 35;
+      #else
+        int16_t currentOffset = 0;
+      #endif
 
+      // Strict INI-Driven Driver Allocation footprint map
       gfx = new Arduino_ST7789(
         bus, 
         pinRst, 
-        0,                 // initial rotation tracking parameter
-        true,              // IPS panel flag
-        constructorWidth,  // physical native panel column width
-        constructorHeight, // physical native panel row height
-        fallbackOffset,    // col_offset1 mapping coordinate
-        0,                 // row_offset1 mapping coordinate
-        fallbackOffset,    // col_offset2 mapping coordinate
-        0                  // row_offset2 mapping coordinate
+        0,                  // initial rotation tracking parameter
+        true,               // IPS panel flag
+        (int16_t)TFT_WIDTH,  // 170 (Native portrait panel physical thickness boundary)
+        (int16_t)TFT_HEIGHT, // 320 (Native portrait panel physical row depth boundary)
+        currentOffset,      // col_offset1 mapping coordinate
+        0,                  // row_offset1 mapping coordinate
+        currentOffset,      // col_offset2 mapping coordinate
+        0                   // row_offset2 mapping coordinate
       );
       
       if (gfx) {
         gfx->begin();
-        
-        // Match rotation configurations based on macro presence strings
-        #ifdef TFT_ROTATION
-          gfx->setRotation(TFT_ROTATION);
-        #else
-          gfx->setRotation(1); 
-        #endif
-        
+        gfx->setRotation(1); // Force landscape transformation loop matching targetWidth/targetHeight
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
@@ -143,6 +114,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         blocksW = segW;
         blocksH = segH;
         
+        // Calculate block bounds cleanly against your native landscape targets
         blockWidth  = targetWidth / blocksW;
         blockHeight = targetHeight / blocksH;
         
@@ -171,13 +143,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
-        
-        #ifdef TFT_BL
-          int8_t pinBl = (int8_t)TFT_BL;
-        #else
-          int8_t pinBl = 14;
-        #endif
-        
+        int8_t pinBl = (int8_t)TFT_BL;
         digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
         if (!lastPowerState) {
           gfx->fillScreen(RGB565_BLACK);
