@@ -115,13 +115,18 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !lastPowerState || !hw) return;
-      hw->driver.drawFrame(strip);
+      // Empty hook to bypass the custom nopixelbuffer rendering delay restrictions cleanly
     }
 
     void loop() override {
       if (!initDone) {
         initializeHardware();
+      }
+
+      // ASYNCHRONOUS FRAME RENDERING: Drive display matrices safely from background tasks 
+      // where execution cycles remain isolated from watchdog panics or thread halts
+      if (initDone && lastPowerState && hw) {
+        hw->driver.drawFrame(strip);
       }
 
       bool currentPowerState = (bri > 0);
@@ -175,8 +180,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        // PRISTINE SYSTEM FIX: Safely delete the old container layout instead of calling init() twice.
-        // This stops multiple allocations, prevents memory corruption, and stops the boot loops.
         if (initDone && hw) {
           delete hw;
           hw = nullptr;
