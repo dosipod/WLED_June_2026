@@ -48,7 +48,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool initDone = false;
     bool lastPowerState = true;
     
-    // SAFE STAGGER COUNTER: Prevents SPI bus registration during network hooks
     uint32_t bootFrameCounter = 0; 
 
     void applyHardwareProfile() {
@@ -113,7 +112,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void connected() override {
-      // Disconnected from network events to prevent hardware bus locks
+      // Intentionally empty to keep hardware bus initialization decoupled from network routines
     }
 
     void handleOverlayDraw() override {
@@ -122,9 +121,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
-      // NON-BLOCKING BOOT STAGGER:
-      // Delays physical display construction until the background loop executes 1500 times.
-      // This completely guarantees that Wi-Fi can initialize and connect entirely unhindered.
       if (!initDone) {
         bootFrameCounter++;
         if (bootFrameCounter < 1500) return; 
@@ -150,7 +146,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       top[F("Display-Height")]   = displayHeight;
       top[F("Column-Offset")]    = colOffset;
       top[F("Pin-MOSI")]         = pinMosi;
-      top[F;("Pin-SCLK")]        = pinSclk;
+      top[F("Pin-SCLK")]         = pinSclk;
       top[F("Pin-CS")]           = pinCs;
       top[F("Pin-DC")]           = pinDc;
       top[F("Pin-RST")]          = pinRst;
