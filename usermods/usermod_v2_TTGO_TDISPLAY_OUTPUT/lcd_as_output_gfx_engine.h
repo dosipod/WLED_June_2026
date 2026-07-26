@@ -23,9 +23,12 @@ class LcdGfxEngine {
 
       bus = new Arduino_ESP32SPI(dc, cs, sclk, mosi, -1);
       gfx = new Arduino_ST7789(bus, rst, 1, true, h, w, colOffset, 0, colOffset, 0);
-      gfx->begin();
-      gfx->fillScreen(RGB565_BLACK);
-      isInit = true;
+      
+      if (gfx) {
+        gfx->begin();
+        gfx->fillScreen(RGB565_BLACK);
+        isInit = true;
+      }
     }
 
     void clear() {
@@ -62,6 +65,11 @@ class LcdGfxEngine {
         }
       }
       gfx->endWrite();
+    }
+
+    ~LcdGfxEngine() {
+      if (gfx) { delete gfx; gfx = nullptr; }
+      if (bus) { delete bus; bus = nullptr; }
     }
 };
 #else
