@@ -16,20 +16,11 @@
   #undef WHITE
 #endif
 
-#if defined(USER_SETUP_LOADED) || defined(TFT_CS)
-  #include "lcd_as_output_espi_engine.h"
-  #define IS_ESPI_ACTIVE 1
-#else
-  #include "lcd_as_output_gfx_engine.h"
-  #define IS_ESPI_ACTIVE 0
-#endif
+// Force the codebase to leverage the flexible dynamic runtime GFX engine layout path
+#include "lcd_as_output_gfx_engine.h"
 
 struct HardwareDriverContainer {
-  #if (IS_ESPI_ACTIVE == 1)
-    LcdTfteSpiEngine driver;
-  #else
-    LcdGfxEngine driver;
-  #endif
+  LcdGfxEngine driver;
 };
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
@@ -53,7 +44,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     bool lastPowerState = true;
 
     void applyHardwareProfile() {
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] applyHardwareProfile() profile presets applied."));
       if (selectedProfile == 1) { 
         displayWidth  = 320;
         displayHeight = 170;
@@ -69,7 +59,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     void initializeHardware() {
       if (initDone) return;
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] >>> initializeHardware() START >>>"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] >>> initializeHardware() START (Arduino_GFX Only) >>>"));
 
       if (pinMosi >= 0) {
         int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
@@ -87,13 +77,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       hw = new HardwareDriverContainer();
       if (hw) {
-        #if (IS_ESPI_ACTIVE == 1)
-          DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing TFT_eSPI driver..."));
-          hw->driver.init();
-        #else
-          DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing Arduino_GFX driver..."));
-          hw->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-        #endif
+        DEBUG_PRINTLN(F("[UM_DisplayMatrix] Initializing safe Arduino_GFX framework engine..."));
+        hw->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
       }
 
       initDone = true;
@@ -103,11 +88,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   public:
     void setup() override {
       DEBUG_PRINTLN(F("===================================================================="));
-      DEBUG_PRINTLN(F("[UM_DisplayMatrix] SOLID CODE EMBED FOOTPRINT: v2026.07.26-STABLE-02"));
+      DEBUG_PRINTLN(F("[UM_DisplayMatrix] SOLID CODE EMBED FOOTPRINT: v2026.07.26-STABLE-03"));
       DEBUG_PRINTLN(F("===================================================================="));
 
       #ifdef TFT_WIDTH
-        DEBUG_PRINTLN(F("[UM_DisplayMatrix] Using platformio.ini compiler overrides."));
         displayWidth = (uint16_t)TFT_WIDTH;
         displayHeight = (uint16_t)TFT_HEIGHT;
         pinMosi = (int8_t)TFT_MOSI;
@@ -125,17 +109,17 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void handleOverlayDraw() override {
-      // LAZY IN-LOOP INVOCATION: Postpones peripheral bus startup requests until 
-      // the real-time drawing framework confirms the system is fully booted and idling.
-      if (!initDone) {
-        initializeHardware();
-      }
-
       if (!initDone || !lastPowerState || !hw) return;
       hw->driver.drawFrame(strip);
     }
 
     void loop() override {
+      // LAZY IN-LOOP INVOCATION: Runs cleanly on the background thread 
+      // after file system mounting and main framework boots are completely clear.
+      if (!initDone) {
+        initializeHardware();
+      }
+
       if (!initDone || !hw) return;
 
       bool currentPowerState = (bri > 0);
