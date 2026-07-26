@@ -37,7 +37,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void initializeDisplay() {
       if (initDone) return;
 
-      // Hardcoded pin allocations matching your ESP32-S3 panel configuration
       int8_t pinMosi = 13;
       int8_t pinSclk = 12;
       int8_t pinCs   = 10;
@@ -45,7 +44,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       int8_t pinRst  = 1;
       int8_t pinBl   = 14;
 
-      // Safe hardware registration with the WLED pin database
       PinManager::allocatePin(pinMosi, false, PinOwner::UM_Unspecified);
       PinManager::allocatePin(pinSclk, false, PinOwner::UM_Unspecified);
       PinManager::allocatePin(pinCs,   false, PinOwner::UM_Unspecified);
@@ -56,13 +54,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       pinMode(pinBl, OUTPUT);
       digitalWrite(pinBl, HIGH);
 
-      // Ultra-safe stack allocation 
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
       gfx = new Arduino_ST7789(bus, pinRst, 0 /* rotation */, true /* IPS */);
       
       if (gfx) {
         gfx->begin();
-        gfx->setRotation(1); // Landscape view
+        gfx->setRotation(1); 
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
       }
@@ -70,25 +67,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      // Intentionally clear of any blocking operations to let WLED boot instantly
+      // Empty to protect Wi-Fi boot layers
     }
 
     void handleOverlayDraw() override {
-      // Lazy-load on the very first drawing frame tick
       if (!initDone) {
         initializeDisplay();
       }
 
       if (!initDone || !lastPowerState || !gfx) return;
 
-      if (!strip.isMatrix) return;
-      Segment& seg = strip.getSegment(0);
-      uint16_t segW = seg.width();
-      uint16_t segH = seg.height();
+      // FIXED MAP EXTRACTION: Fall back to native WLED width/height layout variables 
+      // instead of reading a segment pointer that may be missing on this specialized branch
+      uint16_t segW = strip.isMatrix ? strip.getMatrixWidth() : strip.getLength();
+      uint16_t segH = strip.isMatrix ? strip.getMatrixHeight() : 1;
       
-      // Strict out-of-bounds array protective buffer limits check
-      int totalLedLength = strip.getLength();
-      if (segW == 0 || segH == 0 || totalLedLength == 0) return;
+      if (segW == 0 || segH == 0) return;
 
       if (segW != blocksW || segH != blocksH) {
         blocksW = segW;
@@ -96,7 +90,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         canvasW = gfx->width();
         canvasH = gfx->height();
         
-        // Accurate alignment math to stretch the frame edge-to-edge
         blockWidth  = (canvasW - 70) / blocksW;
         blockHeight = canvasH / blocksH;
         
@@ -110,16 +103,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       for (int h = 0; h < blocksH; h++) {
         uint16_t py = h * blockHeight;
         for (int w = 0; w < blocksW; w++) {
-          int pixelIndex = seg.start + w + (h * segW);
-          
-          uint32_t c = 0;
-          if (pixelIndex >= 0 && pixelIndex < totalLedLength) {
-            c = strip.getPixelColor(pixelIndex);
-          }
+          // DIRECT FRAME BUFFER EXTRACTION LAYER: 
+          // Pull color directly from the primary strip generator matrix map
+          uint32_t c = strip.getPixelColor(w + (h * blocksW));
           
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-          
-          // Hardcoded 35px shift mapping to clear out left static noise
           gfx->writeFillRect((w * blockWidth) + 35, py, blockWidth, blockHeight, color16);
         }
       }
