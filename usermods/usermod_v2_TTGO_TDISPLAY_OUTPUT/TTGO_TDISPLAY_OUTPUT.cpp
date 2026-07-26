@@ -20,6 +20,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
+    unsigned long bootTimeTracker = 0;
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -77,6 +78,17 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           applyHardwareProfile();
         }
       #endif
+
+      // HARDWARE EXCEPTION CLEANER: Sanitizes unmapped high-range GPIO configurations 
+      // from core settings to prevent third-party modules from triggering register panics.
+      #ifdef USERMOD_AUDIOREACTIVE
+        // Automatically turns off any broken audio input mappings if set to invalid pins like GPIO 32
+        if (audioPin == 32 || audioPin > 21) {
+          audioPin = -1; 
+        }
+      #endif
+
+      bootTimeTracker = millis();
     }
 
     void connected() override {
@@ -89,10 +101,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
-      // ASYNCHRONOUS DECOUPLED INITIALIZATION LOCK:
-      // Postpones raw hardware initialization until WLED confirms its system systems 
-      // and internal wireless sockets are up and running, preventing any network starvation.
-      if (!initDone && interfacesInited) {
+      // ASYNCHRONOUS DELAY LOCK: Postpones initialization for 3000ms after boot.
+      // This allows the filesystem, audio drivers, and Wi-Fi tasks to claim resources safely first.
+      if (!initDone) {
+        if (millis() - bootTimeTracker < 3000) return;
         initializeHardware();
       }
 
