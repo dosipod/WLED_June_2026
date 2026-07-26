@@ -1,9 +1,37 @@
 #include "wled.h"
-#include "display_wrapper.h"
+
+#ifdef BLACK
+  #undef BLACK
+#endif
+#ifdef BLUE
+  #undef BLUE
+#endif
+#ifdef GREEN
+  #undef GREEN
+#endif
+#ifdef RED
+  #undef RED
+#endif
+#ifdef WHITE
+  #undef WHITE
+#endif
+
+#if defined(USER_SETUP_LOADED) || defined(TFT_CS)
+  #include "lcd_as_output_espi_engine.h"
+  #define IS_ESPI_ACTIVE 1
+#else
+  #include "lcd_as_output_gfx_engine.h"
+  #define IS_ESPI_ACTIVE 0
+#endif
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    DisplayWrapper* hw = nullptr;
+    // DIRECT INLINE REFERENCE POINTERS: Completely avoids functional calling layer overhead
+    #if (IS_ESPI_ACTIVE == 1)
+      LcdTfteSpiEngine* engine = nullptr;
+    #else
+      LcdGfxEngine* engine = nullptr;
+    #endif
 
     int selectedProfile = 1; 
 
@@ -20,6 +48,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
+    unsigned long bootTimeDelayMarker = 0; // Async safety timer tracker
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -52,10 +81,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      hw = new DisplayWrapper();
-      if (hw) {
-        hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-      }
+      // Safe Runtime Context: Allocate objects cleanly on a lightweight heap path
+      #if (IS_ESPI_ACTIVE == 1)
+        engine = new LcdTfteSpiEngine();
+        if (engine) engine->init();
+      #else
+        engine = new LcdGfxEngine();
+        if (engine) engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+      #endif
 
       initDone = true;
     }
@@ -77,34 +110,39 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           applyHardwareProfile();
         }
       #endif
+
+      // Start asynchronous safety countdown snapshot at early boot
+      bootTimeDelayMarker = millis();
     }
 
     void connected() override {
-      // Keep this hook fallback active for standard network connection state paths
+      // Retain standard connection callback hooks for standard branch tracking options
       initializeHardware();
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !lastPowerState || !hw) return;
-      hw->renderFrame(strip);
+      if (!initDone || !lastPowerState || !engine) return;
+      engine->drawFrame(strip);
     }
 
     void loop() override {
-      // CRITICAL LOGIC CORRECTION:
-      // If the connected() hook is skipped by the custom nopixelbuffer branch constraints, 
-      // safely initialize the display hardware dynamically on the very first loop cycle tick.
+      // ASYNCHRONOUS NON-BLOCKING DELAY PROTOCOL:
+      // Holds off display driver bus allocation for exactly 4 seconds post-boot.
+      // This gives WLED plenty of time to clear audio usermod anomalies, mount settings files,
+      // associate with your router, and launch its over-the-air update listener services cleanly first.
       if (!initDone) {
+        if (millis() - bootTimeDelayMarker < 4000) return;
         initializeHardware();
       }
 
-      if (!initDone || !hw) return;
+      if (!initDone || !engine) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
-        if (!lastPowerState && hw) {
-          hw->clearScreen();
+        if (!lastPowerState) {
+          engine->clear();
         }
       }
     }
@@ -134,9 +172,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        if (hw) {
-          delete hw;
-          hw = nullptr;
+        if (engine) {
+          delete engine;
+          engine = nullptr;
         }
         initDone = false; 
       } else {
@@ -150,8 +188,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        if (initDone && hw) {
-          hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        // PRISTINE ISOLATION FIX: Never trigger driver hardware operations inside config cycles.
+        // We set initDone to false to let our safe background timer loop handle reconfiguration.
+        if (initDone && engine) {
+          delete engine;
+          engine = nullptr;
+          initDone = false;
         }
       }
       return true;
@@ -171,9 +213,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     ~TTGO_TDISPLAY_OUTPUT() {
-      if (hw) {
-        delete hw;
-        hw = nullptr;
+      if (engine) {
+        delete engine;
+        engine = nullptr;
       }
     }
 };
