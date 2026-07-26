@@ -1,34 +1,13 @@
 #include "wled.h"
 
-#ifdef BLACK
-  #undef BLACK
-#endif
-#ifdef BLUE
-  #undef BLUE
-#endif
-#ifdef GREEN
-  #undef GREEN
-#endif
-#ifdef RED
-  #undef RED
-#endif
-#ifdef WHITE
-  #undef WHITE
-#endif
-
-#if defined(USER_SETUP_LOADED) || defined(TFT_CS)
-  #include "lcd_as_output_espi_engine.h"
-  #define IS_ESPI_ACTIVE 1
-#else
-  #include "lcd_as_output_gfx_engine.h"
-  #define IS_ESPI_ACTIVE 0
-#endif
+// Forward declaration of an untyped wrapper pointer to bypass flash memory tracking loops at boot
+class DisplayWrapper;
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    // VOID POINTER ISOLATION: Completely hides the display engine footprints from early compiler 
-    // memory sweeps, allowing WLED to map its core LED strip pixel buffers without register panics.
-    void* engine = nullptr;
+    // PURE ARCHITECTURAL ISOLATION: Zero third-party display library headers are included here.
+    // This allows WLED to allocate its internal LED strip pixel buffers with zero register conflicts.
+    DisplayWrapper* hw = nullptr;
 
     int selectedProfile = 1; 
 
@@ -77,21 +56,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // ASYNCHRONOUS BACKGROUND HEAP ALLOCATION:
-      // Instantiates drivers safely after the network stack is up and core led mapping concludes.
-      #if (IS_ESPI_ACTIVE == 1)
-        LcdTfteSpiEngine* e = new LcdTfteSpiEngine();
-        if (e) {
-          e->init();
-          engine = (void*)e;
-        }
-      #else
-        LcdGfxEngine* e = new LcdGfxEngine();
-        if (e) {
-          e->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-          engine = (void*)e;
-        }
-      #endif
+      // Late Inclusions Protocol: Pull the wrapper definition into memory safely long after boot concludes
+      #include "display_wrapper.h"
+      
+      hw = new DisplayWrapper();
+      if (hw) {
+        hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+      }
 
       initDone = true;
     }
@@ -115,34 +86,27 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
-    // Safely fire hardware driver logic inside the asynchronous network handler.
+    // Fire driver instantiation safely inside the asynchronous network handler loop window
     void connected() override {
       initializeHardware();
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !lastPowerState || !engine) return;
-      
-      #if (IS_ESPI_ACTIVE == 1)
-        ((LcdTfteSpiEngine*)engine)->drawFrame(strip);
-      #else
-        ((LcdGfxEngine*)engine)->drawFrame(strip);
-      #endif
+      #include "display_wrapper.h"
+      if (!initDone || !lastPowerState || !hw) return;
+      hw->renderFrame(strip);
     }
 
     void loop() override {
-      if (!initDone || !engine) return;
+      if (!initDone || !hw) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
+        #include "display_wrapper.h"
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
-        if (!lastPowerState && engine) {
-          #if (IS_ESPI_ACTIVE == 1)
-            ((LcdTfteSpiEngine*)engine)->clear();
-          #else
-            ((LcdGfxEngine*)engine)->clear();
-          #endif
+        if (!lastPowerState && hw) {
+          hw->clearScreen();
         }
       }
     }
@@ -172,13 +136,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        if (engine) {
-          #if (IS_ESPI_ACTIVE == 1)
-            delete ((LcdTfteSpiEngine*)engine);
-          #else
-            delete ((LcdGfxEngine*)engine);
-          #endif
-          engine = nullptr;
+        if (hw) {
+          #include "display_wrapper.h"
+          delete hw;
+          hw = nullptr;
         }
         initDone = false; 
       } else {
@@ -192,12 +153,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        if (initDone && engine) {
-          #if (IS_ESPI_ACTIVE == 1)
-            ((LcdTfteSpiEngine*)engine)->init();
-          #else
-            ((LcdGfxEngine*)engine)->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-          #endif
+        if (initDone && hw) {
+          #include "display_wrapper.h"
+          hw->initDriver(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
         }
       }
       return true;
@@ -217,13 +175,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     ~TTGO_TDISPLAY_OUTPUT() {
-      if (engine) {
-        #if (IS_ESPI_ACTIVE == 1)
-          delete ((LcdTfteSpiEngine*)engine);
-        #else
-          delete ((LcdGfxEngine*)engine);
-        #endif
-        engine = nullptr;
+      if (hw) {
+        #include "display_wrapper.h"
+        delete hw;
+        hw = nullptr;
       }
     }
 };
