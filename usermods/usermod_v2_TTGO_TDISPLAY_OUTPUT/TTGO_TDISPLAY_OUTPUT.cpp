@@ -67,7 +67,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
   public:
     void setup() override {
-      // Empty to protect Wi-Fi boot layers
+      // Clear of blocking hooks
     }
 
     void handleOverlayDraw() override {
@@ -77,10 +77,10 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (!initDone || !lastPowerState || !gfx) return;
 
-      // FIXED MAP EXTRACTION: Fall back to native WLED width/height layout variables 
-      // instead of reading a segment pointer that may be missing on this specialized branch
-      uint16_t segW = strip.isMatrix ? strip.getMatrixWidth() : strip.getLength();
-      uint16_t segH = strip.isMatrix ? strip.getMatrixHeight() : 1;
+      // Safe branch extraction using standard structural segments
+      Segment& seg = strip.getSegment(0);
+      uint16_t segW = seg.width();
+      uint16_t segH = seg.height();
       
       if (segW == 0 || segH == 0) return;
 
@@ -103,8 +103,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       for (int h = 0; h < blocksH; h++) {
         uint16_t py = h * blockHeight;
         for (int w = 0; w < blocksW; w++) {
-          // DIRECT FRAME BUFFER EXTRACTION LAYER: 
-          // Pull color directly from the primary strip generator matrix map
+          // Pull color directly from the active strip layout index channel
           uint32_t c = strip.getPixelColor(w + (h * blocksW));
           
           uint16_t color16 = gfx->color565((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
