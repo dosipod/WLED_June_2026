@@ -26,12 +26,11 @@
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
+    // STRICT POINTER TYPE DECLARATIONS: Keeps class footprint clean at boot to avoid early bus lockups
     #if (IS_ESPI_ACTIVE == 1)
-      LcdTfteSpiEngine engine;
-      const int activeDriverMode = 0;
+      LcdTfteSpiEngine* engine = nullptr;
     #else
-      LcdGfxEngine engine;
-      const int activeDriverMode = 1;
+      LcdGfxEngine* engine = nullptr;
     #endif
 
     int selectedProfile = 1; 
@@ -82,7 +81,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         }
       #endif
 
-      // INITIALIZE HERE: Register pins with WLED's native PinManager database safely during setup
+      // Safely register pins with WLED database
       if (pinMosi >= 0) {
         int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
         for (uint8_t i = 0; i < 6; i++) {
@@ -97,20 +96,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // Safe, standard initialization call right inside the core lifecycle hook
+      // SAFE RUNTIME ALLOCATION: Instantiate display engine pointer cleanly after strip footprints register
       #if (IS_ESPI_ACTIVE == 1)
-        engine.init();
+        engine = new LcdTfteSpiEngine();
+        if (engine) engine->init();
       #else
-        engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        engine = new LcdGfxEngine();
+        if (engine) engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
       #endif
 
       initDone = true;
     }
 
     void handleOverlayDraw() override {
-      // NEVER block or return early during early transition phases to prevent core segment panics
-      if (!lastPowerState) return;
-      engine.drawFrame(strip);
+      // Shield the canvas rendering logic completely unless driver registration is initialized
+      if (!initDone || !lastPowerState || !engine) return;
+      engine->drawFrame(strip);
     }
 
     void loop() override {
@@ -120,8 +121,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
-        if (!lastPowerState) {
-          engine.clear();
+        if (!lastPowerState && engine) {
+          engine->clear();
         }
       }
     }
@@ -151,11 +152,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        #if (IS_ESPI_ACTIVE == 1)
-          engine.init();
-        #else
-          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-        #endif
+        if (engine) {
+          #if (IS_ESPI_ACTIVE == 1)
+            engine->init();
+          #else
+            engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+          #endif
+        }
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -167,11 +170,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        #if (IS_ESPI_ACTIVE == 1)
-          engine.init();
-        #else
-          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-        #endif
+        if (initDone && engine) {
+          #if (IS_ESPI_ACTIVE == 1)
+            engine->init();
+          #else
+            engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+          #endif
+        }
       }
       return true;
     }
@@ -187,6 +192,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #else
         return USERMOD_ID_UNSPECIFIED;
       #endif
+    }
+
+    ~TTGO_TDISPLAY_OUTPUT() {
+      if (engine) {
+        delete engine;
+        engine = nullptr;
+      }
     }
 };
 
