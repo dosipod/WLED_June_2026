@@ -79,9 +79,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
-    // WLED STANDARD ASYNCHRONOUS CONNECTIONS CALLBACK HOOK:
-    // This fires safely outside of the rapid blocking loops only after 
-    // files are parsed and the network stack has finished initializing.
     void connected() override {
       initializeHardware();
     }
@@ -92,7 +89,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
-      // Loop stays lightweight and clean to guarantee network performance
+      // ASYNCHRONOUS DECOUPLED INITIALIZATION LOCK:
+      // Postpones raw hardware initialization until WLED confirms its system systems 
+      // and internal wireless sockets are up and running, preventing any network starvation.
+      if (!initDone && interfacesInited) {
+        initializeHardware();
+      }
+
       if (!initDone || !hw) return;
 
       bool currentPowerState = (bri > 0);
