@@ -16,17 +16,17 @@
   #undef WHITE
 #endif
 
-#if defined(USER_SETUP_LOADED) || defined(TFT_CS)
-  #include "lcd_as_output_espi_engine.h"
+#include "lcd_as_output_espi_engine.h"
+#include "lcd_as_output_gfx_engine.h"
+
+#if __has_include(<TFT_eSPI.h>) && (defined(USER_SETUP_LOADED) || defined(TFT_CS))
   #define IS_ESPI_ACTIVE 1
 #else
-  #include "lcd_as_output_gfx_engine.h"
   #define IS_ESPI_ACTIVE 0
 #endif
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    // CRITICAL MEMORY CORRECTION: Avoid static constructor allocation collisions by shifting to explicit engine pointers
     #if (IS_ESPI_ACTIVE == 1)
       LcdTfteSpiEngine* engine = nullptr;
       const int activeDriverMode = 0;
@@ -82,7 +82,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
-      // SAFE RUNTIME INITIALIZATION: Construct the class instance dynamically using the heap pointer
       #if (IS_ESPI_ACTIVE == 1)
         engine = new LcdTfteSpiEngine();
         engine->init();
@@ -117,7 +116,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void loop() override {
-      // LAZY IN-LOOP INVOCATION: Bypasses static flash-memory lookup panics completely
       if (!initDone) {
         initializeHardware();
       }
@@ -192,7 +190,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #endif
     }
 
-    // Clean up dynamic heap references gracefully if module teardown is requested
     ~TTGO_TDISPLAY_OUTPUT() {
       if (engine) {
         delete engine;
