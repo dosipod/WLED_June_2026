@@ -26,11 +26,12 @@
 
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
+    // CRITICAL MEMORY CORRECTION: Avoid static constructor allocation collisions by shifting to explicit engine pointers
     #if (IS_ESPI_ACTIVE == 1)
-      LcdTfteSpiEngine engine;
+      LcdTfteSpiEngine* engine = nullptr;
       const int activeDriverMode = 0;
     #else
-      LcdGfxEngine engine;
+      LcdGfxEngine* engine = nullptr;
       const int activeDriverMode = 1;
     #endif
 
@@ -81,10 +82,13 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         digitalWrite(pinBl, HIGH);
       }
 
+      // SAFE RUNTIME INITIALIZATION: Construct the class instance dynamically using the heap pointer
       #if (IS_ESPI_ACTIVE == 1)
-        engine.init();
+        engine = new LcdTfteSpiEngine();
+        engine->init();
       #else
-        engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        engine = new LcdGfxEngine();
+        engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
       #endif
 
       initDone = true;
@@ -108,13 +112,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !lastPowerState) return;
-      engine.drawFrame(strip);
+      if (!initDone || !lastPowerState || !engine) return;
+      engine->drawFrame(strip);
     }
 
     void loop() override {
-      // SAFE BACKGROUND INITIALIZATION: Spawns the display hardware lazily outside
-      // of boot cycles, keeping network, web interfaces, and OTA entirely functional.
+      // LAZY IN-LOOP INVOCATION: Bypasses static flash-memory lookup panics completely
       if (!initDone) {
         initializeHardware();
       }
@@ -123,8 +126,8 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
-        if (!lastPowerState) {
-          engine.clear();
+        if (!lastPowerState && engine) {
+          engine->clear();
         }
       }
     }
@@ -166,11 +169,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
       }
 
-      if (initDone) {
+      if (initDone && engine) {
         #if (IS_ESPI_ACTIVE == 1)
-          engine.init();
+          engine->init();
         #else
-          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+          engine->init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
         #endif
       }
       return true;
@@ -187,6 +190,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #else
         return USERMOD_ID_UNSPECIFIED;
       #endif
+    }
+
+    // Clean up dynamic heap references gracefully if module teardown is requested
+    ~TTGO_TDISPLAY_OUTPUT() {
+      if (engine) {
+        delete engine;
+        engine = nullptr;
+      }
     }
 };
 
