@@ -51,7 +51,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
-    unsigned long bootTimeMarker = 0; // Tracker to handle non-blocking asynchronous timing
 
     HardwareDriverContainer* getHw() {
       return reinterpret_cast<HardwareDriverContainer*>(hwMemory);
@@ -122,26 +121,21 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           applyHardwareProfile();
         }
       #endif
-      
-      // Capture system tick count at early boot window to start our asynchronous safety timer
-      bootTimeMarker = millis(); 
     }
 
     void handleOverlayDraw() override {
+      // Lazy-load the display engine on the first real rendering call.
+      // This guarantees the network stack and system files mount without thread starvation.
+      if (!initDone) {
+        initializeHardware();
+      }
+
       if (!initDone || !lastPowerState) return;
       getHw()->driver.drawFrame(strip);
     }
 
     void loop() override {
-      // NON-BLOCKING ASYNCHRONOUS DELAY PROTOCOL:
-      // Postpones hardware initialization for exactly 5000 milliseconds after boot.
-      // This leaves the startup window completely clear for Wi-Fi association and network loops.
-      if (!initDone) {
-        if (millis() - bootTimeMarker < 5000) {
-          return; // Yield control back to WLED's core networking tasks unhindered
-        }
-        initializeHardware();
-      }
+      if (!initDone) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
