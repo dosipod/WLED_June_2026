@@ -24,18 +24,16 @@
   #define IS_ESPI_ACTIVE 0
 #endif
 
-struct HardwareDriverContainer {
-  #if (IS_ESPI_ACTIVE == 1)
-    LcdTfteSpiEngine driver;
-  #else
-    LcdGfxEngine driver;
-  #endif
-};
-
 class TTGO_TDISPLAY_OUTPUT : public Usermod {
   private:
-    alignas(void*) uint8_t hwMemory[sizeof(HardwareDriverContainer)];
-    
+    #if (IS_ESPI_ACTIVE == 1)
+      LcdTfteSpiEngine engine;
+      const int activeDriverMode = 0;
+    #else
+      LcdGfxEngine engine;
+      const int activeDriverMode = 1;
+    #endif
+
     int selectedProfile = 1; 
 
     uint16_t displayWidth = 320;
@@ -51,13 +49,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
     bool initDone = false;
     bool lastPowerState = true;
-    
-    // SOLID CODING PRACTICE: Step counter to stagger peripheral bus startup requests
-    uint16_t loopCounter = 0; 
-
-    HardwareDriverContainer* getHw() {
-      return reinterpret_cast<HardwareDriverContainer*>(hwMemory);
-    }
 
     void applyHardwareProfile() {
       if (selectedProfile == 1) { 
@@ -71,40 +62,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         pinRst        = 1;
         pinBl         = 14;
       }
-    }
-
-    void initializeHardware() {
-      if (initDone) return;
-
-      if (pinMosi >= 0) {
-        int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
-        for (uint8_t i = 0; i < 6; i++) {
-          if (pinsToAllocate[i] >= 0) {
-            PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
-          }
-        }
-      }
-
-      if (pinBl >= 0) {
-        pinMode(pinBl, OUTPUT);
-        digitalWrite(pinBl, HIGH);
-      }
-
-      ::new (hwMemory) HardwareDriverContainer();
-
-      #if (IS_ESPI_ACTIVE == 1)
-        getHw()->driver.init();
-      #else
-        getHw()->driver.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
-      #endif
-
-      initDone = true;
-    }
-
-    void destroyHardware() {
-      if (!initDone) return;
-      getHw()->~HardwareDriverContainer();
-      initDone = false;
     }
 
   public:
@@ -124,32 +81,47 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
           applyHardwareProfile();
         }
       #endif
+
+      // INITIALIZE HERE: Register pins with WLED's native PinManager database safely during setup
+      if (pinMosi >= 0) {
+        int8_t pinsToAllocate[] = { pinMosi, pinSclk, pinCs, pinDc, pinRst, pinBl };
+        for (uint8_t i = 0; i < 6; i++) {
+          if (pinsToAllocate[i] >= 0) {
+            PinManager::allocatePin(pinsToAllocate[i], false, PinOwner::UM_Unspecified);
+          }
+        }
+      }
+
+      if (pinBl >= 0) {
+        pinMode(pinBl, OUTPUT);
+        digitalWrite(pinBl, HIGH);
+      }
+
+      // Safe, standard initialization call right inside the core lifecycle hook
+      #if (IS_ESPI_ACTIVE == 1)
+        engine.init();
+      #else
+        engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+      #endif
+
+      initDone = true;
     }
 
     void handleOverlayDraw() override {
-      if (!initDone || !lastPowerState) return;
-      getHw()->driver.drawFrame(strip);
+      // NEVER block or return early during early transition phases to prevent core segment panics
+      if (!lastPowerState) return;
+      engine.drawFrame(strip);
     }
 
     void loop() override {
-      // NON-BLOCKING BUS DECOUPLING PROTOCOL:
-      // Safely delays display hardware setup for 250 ticks AFTER the network stack is ready.
-      // This leaves the bus completely clear for the audio input engine to initialize first.
-      if (!initDone) {
-        if (interfacesInited) {
-          loopCounter++;
-          if (loopCounter < 250) return; // Yield thread control back to core background tasks
-          initializeHardware();
-        }
-        return;
-      }
+      if (!initDone) return;
 
       bool currentPowerState = (bri > 0);
       if (currentPowerState != lastPowerState) {
         lastPowerState = currentPowerState;
         if (pinBl >= 0) digitalWrite(pinBl, lastPowerState ? HIGH : LOW);
-        if (!lastPowerState && initDone) {
-          getHw()->driver.clear();
+        if (!lastPowerState) {
+          engine.clear();
         }
       }
     }
@@ -179,8 +151,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
 
       if (selectedProfile != oldProfile && selectedProfile > 0) {
         applyHardwareProfile();
-        destroyHardware();
-        loopCounter = 0;
+        #if (IS_ESPI_ACTIVE == 1)
+          engine.init();
+        #else
+          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        #endif
       } else {
         if (top[F("Display-Width")].is<int>())    displayWidth  = (uint16_t)top[F("Display-Width")].as<int>();
         if (top[F("Display-Height")].is<int>())   displayHeight = (uint16_t)top[F("Display-Height")].as<int>();
@@ -192,10 +167,11 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         if (top[F("Pin-RST")].is<int>())          pinRst        = (int8_t)top[F("Pin-RST")].as<int>();
         if (top[F("Pin-Backlight")].is<int>())    pinBl         = (int8_t)top[F("Pin-Backlight")].as<int>();
 
-        if (initDone) {
-          destroyHardware();
-          loopCounter = 0;
-        }
+        #if (IS_ESPI_ACTIVE == 1)
+          engine.init();
+        #else
+          engine.init(pinMosi, pinSclk, pinCs, pinDc, pinRst, displayWidth, displayHeight, colOffset);
+        #endif
       }
       return true;
     }
@@ -211,10 +187,6 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       #else
         return USERMOD_ID_UNSPECIFIED;
       #endif
-    }
-
-    ~TTGO_TDISPLAY_OUTPUT() {
-      destroyHardware();
     }
 };
 
