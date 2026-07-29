@@ -146,6 +146,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
         gfx->setRotation(1); // Force landscape transformation loop matching targetWidth/targetHeight
         gfx->fillScreen(RGB565_BLACK);
         initDone = true;
+
+         #ifdef ILI9341_2_SIZE_320X240
+         // Toggles hardware-level coordinate color decoding registers to fix inverted RGB layers
+         gfx->invertDisplay(true); 
+        #endif
+        
       }
     }
 
