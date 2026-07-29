@@ -32,10 +32,16 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   // S3 Setup Parameters
   const uint16_t targetWidth  = 320;
   const uint16_t targetHeight = 170;
-#else
+#elif ST7789_SIZE_240X134
   // Fallback / Classic TTGO T-Display Setup Parameters
   const uint16_t targetWidth  = 240;
   const uint16_t targetHeight = 135;
+#elif ILI9341_2_SIZE_320X240
+  // CYD Setup Parameters
+  const uint16_t targetWidth  = 320;
+  const uint16_t targetHeight = 240;
+#else
+ /// TODO ADD MORE DISPLAY
 #endif
     
     
@@ -96,7 +102,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       );
 
 
-    #else
+    #elif ST7789_SIZE_240X134 
     // The older 240x135 display maps explicitly shifted coordinates
     int16_t col_offset1 = 52; 
     int16_t row_offset1 = 40;
@@ -115,6 +121,19 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     col_offset2, 
     row_offset2
     );
+
+  #elif ILI9341_2_SIZE_320X240 
+
+  // Correct structural call matching the Arduino_GFX repository
+  gfx = new Arduino_ILI9341(
+    bus, 
+    pinRst, 
+    1,            // Rotation set to 1 (Landscape)
+    false         // Standard TN panel flag (CYD is not IPS)
+  );
+
+  #else
+    // new display specs here
   #endif
 
 
