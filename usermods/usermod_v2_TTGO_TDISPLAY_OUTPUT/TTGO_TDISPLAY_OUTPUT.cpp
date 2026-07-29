@@ -40,9 +40,14 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   // CYD Setup Parameters
   const uint16_t targetWidth  = 320;
   const uint16_t targetHeight = 240;
+#elif ST7735_SIZE_160x128
+  // SIZE_160x128
+  const uint16_t targetWidth  = 160;
+  const uint16_t targetHeight = 128;
 #else
  /// TODO ADD MORE DISPLAY
 #endif
+
     
     
     uint16_t blockWidth = 1;
@@ -132,6 +137,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     false         // Standard TN panel flag (CYD is not IPS)
   );
 
+#elif ST7735_SIZE_160x128
+  // WAVGAT 1.8 utilizes an ST7735 class constructor tracking native parameters
+  gfx = new Arduino_ST7735(
+    bus, 
+    pinRst, 
+    1,            // Rotation set to 1 (Landscape)
+    false,        // Standard panel target (Not IPS layout)
+    128,          // Physical Canvas width configuration
+    160,          // Physical Canvas height configuration
+    0,            // Column hardware shift offset
+    0,            // Row hardware shift offset
+    0,            // Alternative column hardware shift offset
+    0,            // Alternative row hardware shift offset
+    false         // BGR color layout flag toggling configuration
+  );
+      
   #else
     // new display specs here
   #endif
