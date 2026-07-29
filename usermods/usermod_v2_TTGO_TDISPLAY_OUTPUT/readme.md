@@ -41,5 +41,18 @@ const uint16_t targetHeight = 135;
 ```
 Full board info : T Display ESP32 WiFi And Bluetooth-Compatible Module Development Board 1.14 Inch LCD Control
 https://ar.aliexpress.com/item/1005006495816339.html?spm=a2g0o.order_list.order_list_main.43.58da1802nM5M7J&gatewayAdapt=glo2ara
----
+
+
+
+## 3. CYD ILI9341_2_SIZE_320X240 ( or clone) 
+* **Resolution:** 320X240
+* **WLED Matrix Size Setup:** `80x44`
+
+
+## 4. ST7735_SIZE_160x128
+* **Resolution:** 160X128
+* **WLED Matrix Size Setup:** `80x64`
+
+
+
 *Todo: Buy and add new display.*
