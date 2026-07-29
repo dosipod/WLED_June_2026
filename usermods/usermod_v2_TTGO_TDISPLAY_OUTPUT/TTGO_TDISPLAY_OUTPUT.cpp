@@ -59,14 +59,24 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     void initializeDisplay() {
       if (initDone) return;
 
-      // Extract your native environment pin definitions
+      // Extract your native environment pin definitions from the ini file 
+    #ifdef ST7735_SIZE_160x128
+    // Use the new, unique macros defined in platformio.ini
+      int8_t pinMosi = (int8_t) MY_PIN_MOSI;
+      int8_t pinSclk = (int8_t) MY_PIN_SCLK;
+      int8_t pinCs   = (int8_t) MY_PIN_CS;
+      int8_t pinDc   = (int8_t) MY_PIN_DC;
+      int8_t pinRst  = (int8_t) MY_PIN_RST;
+      int8_t pinBl   = (int8_t) MY_PIN_BL;
+    #else // Fallback constants for other functional environments (S3 / CYD)
       int8_t pinMosi = (int8_t)TFT_MOSI;
       int8_t pinSclk = (int8_t)TFT_SCLK;
       int8_t pinCs   = (int8_t)TFT_CS;
       int8_t pinDc   = (int8_t)TFT_DC;
       int8_t pinRst  = (int8_t)TFT_RST;
       int8_t pinBl   = (int8_t)TFT_BL;
-
+   #endif
+      
       PinManager::allocatePin(pinMosi, false, PinOwner::UM_Unspecified);
       PinManager::allocatePin(pinSclk, false, PinOwner::UM_Unspecified);
       PinManager::allocatePin(pinCs,   false, PinOwner::UM_Unspecified);
