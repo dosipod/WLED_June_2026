@@ -90,7 +90,12 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       pinMode(pinBl, OUTPUT);
       digitalWrite(pinBl, HIGH);
 
+      #if defined(CONFIG_IDF_TARGET_ESP32C3)
+      bus = new Arduino_SWSPI(pinDc, pinCs, pinSclk, pinMosi, -1);
+      #else
       bus = new Arduino_ESP32SPI(pinDc, pinCs, pinSclk, pinMosi, -1);
+      #endif
+
 
       // AUTOMATED OFFSET MAPPING BOUNDS:
       // Evaluates your active -D CGRAM_OFFSET flag from your ini file. If active, it 
