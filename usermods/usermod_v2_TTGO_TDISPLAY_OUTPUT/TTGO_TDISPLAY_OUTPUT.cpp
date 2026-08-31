@@ -44,6 +44,9 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   // SIZE_160x128
   const uint16_t targetWidth  = 160;
   const uint16_t targetHeight = 128;
+#elif ST7735_SIZE_128x128
+  const uint16_t targetWidth  = 128;
+  const uint16_t targetHeight = 128;
 #else
  /// TODO ADD MORE DISPLAY
 #endif
@@ -156,6 +159,22 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     false,        // Standard panel target (Not IPS layout)
     128,          // Physical Canvas width configuration
     160,          // Physical Canvas height configuration
+    0,            // Column hardware shift offset
+    0,            // Row hardware shift offset
+    0,            // Alternative column hardware shift offset
+    0,            // Alternative row hardware shift offset
+    false         // BGR color layout flag toggling configuration
+  );
+
+#elif ST7735_SIZE_128x128
+  // TDO
+  gfx = new Arduino_ST7735(
+    bus, 
+    pinRst, 
+    1,            // Rotation set to 1 (Landscape)
+    false,        // Standard panel target (Not IPS layout)
+    128,          // Physical Canvas width configuration
+    128,          // Physical Canvas height configuration
     0,            // Column hardware shift offset
     0,            // Row hardware shift offset
     0,            // Alternative column hardware shift offset
