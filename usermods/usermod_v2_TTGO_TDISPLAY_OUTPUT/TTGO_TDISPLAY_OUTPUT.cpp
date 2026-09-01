@@ -187,8 +187,8 @@ gfx = new Arduino_ST7735(
     false,   // Standard panel target
     128,     // Physical Canvas width configuration
     128,     // Physical Canvas height configuration
-    0,       // Column hardware shift offset
-    0,       // Row hardware shift offset
+    2,       // Column hardware shift offset
+    3,       // Row hardware shift offset
     0,       // Alternative column hardware shift offset
     0,       // Alternative row hardware shift offset
     true     // BGR color layout flag toggling configuration
