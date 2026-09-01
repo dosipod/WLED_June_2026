@@ -176,7 +176,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   gfx = new Arduino_ST7735(
     bus, 
     pinRst, 
-    1,            // Rotation set to 1 (Landscape)
+    0,            // Rotation set to 1 (Landscape)
     false,        // Standard panel target (Not IPS layout)
     128,          // Physical Canvas width configuration
     128,          // Physical Canvas height configuration
