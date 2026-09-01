@@ -209,15 +209,19 @@ gfx = new Arduino_ST7735(
 
       
       if (gfx) {
-        gfx->begin();
-        gfx->setRotation(1); // Force landscape transformation loop matching targetWidth/targetHeight
-        gfx->fillScreen(RGB565_BLACK);
-        initDone = true;
-
+         gfx->begin();
          #ifdef ILI9341_2_SIZE_320X240
          // Toggles hardware-level coordinate color decoding registers to fix inverted RGB layers
-         gfx->invertDisplay(true); 
+            gfx->invertDisplay(true); 
+         #elif ST7735_SIZE_128x128
+            // gfx->setRotation(2); // <-- SET YOUR TARGET TESTING ROTATION HERE (2 or 3)
+            // do nothing just dummy line so to not change the rotation and keep its value from gfx = new Arduino_ST7735 ?!!!!! 
+         #else 
+            gfx->setRotation(1);
         #endif
+
+        gfx->fillScreen(RGB565_BLACK);
+        initDone = true;
         
       }
     }
