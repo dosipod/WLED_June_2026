@@ -172,20 +172,28 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   );
 
 #elif ST7735_SIZE_128x128
-  // TDO
-  gfx = new Arduino_ST7735(
-    bus, 
-    pinRst, 
-    0,            // Rotation set to 1 (Landscape)
-    false,        // Standard panel target (Not IPS layout)
-    128,          // Physical Canvas width configuration
-    128,          // Physical Canvas height configuration
-    2,       // Column hardware shift offset 
-    3,       // Row hardware shift offset   
-    0,            // Alternative column hardware shift offset
-    0,            // Alternative row hardware shift offset
-    true         // BGR color layout flag toggling configuration
-  );
+// // TDO - Dynamic initialization force
+if (pinRst >= 0) {
+    pinMode(pinRst, OUTPUT);
+    digitalWrite(pinRst, HIGH); delay(50);
+    digitalWrite(pinRst, LOW);  delay(50);
+    digitalWrite(pinRst, HIGH); delay(50);
+}
+
+gfx = new Arduino_ST7735(
+    bus,
+    pinRst,
+    2,       // Let's set it to 2 (Manufacturer Default Portrait)
+    false,   // Standard panel target
+    128,     // Physical Canvas width configuration
+    128,     // Physical Canvas height configuration
+    2,       // Column hardware shift offset
+    3,       // Row hardware shift offset
+    0,       // Alternative column hardware shift offset
+    0,       // Alternative row hardware shift offset
+    true     // BGR color layout flag toggling configuration
+);
+
 
 
 
