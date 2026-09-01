@@ -183,7 +183,7 @@ if (pinRst >= 0) {
 gfx = new Arduino_ST7735(
     bus,
     pinRst,
-    1,       // Let's set it to 2 (Manufacturer Default Portrait)
+    0,       // Let's set it to 2 (Manufacturer Default Portrait)
     false,   // Standard panel target
     128,     // Physical Canvas width configuration
     128,     // Physical Canvas height configuration
