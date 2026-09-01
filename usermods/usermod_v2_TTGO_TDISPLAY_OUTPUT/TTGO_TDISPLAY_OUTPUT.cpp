@@ -181,7 +181,7 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
     128,          // Physical Canvas width configuration
     128,          // Physical Canvas height configuration
     2,       // Column hardware shift offset <-- CHANGE FROM 0 TO 2
-    3,       // Row hardware shift offset    <-- CHANGE FROM 0 TO 3
+    32,       // Row hardware shift offset    <-- CHANGE FROM 0 TO 32
     0,            // Alternative column hardware shift offset
     0,            // Alternative row hardware shift offset
     true         // BGR color layout flag toggling configuration
