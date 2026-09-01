@@ -176,16 +176,20 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
   gfx = new Arduino_ST7735(
     bus, 
     pinRst, 
-    3,            // Rotation set to 1 (Landscape)
+    0,            // Rotation set to 1 (Landscape)
     false,        // Standard panel target (Not IPS layout)
     128,          // Physical Canvas width configuration
     128,          // Physical Canvas height configuration
-    0,            // Column hardware shift offset
-    0,            // Row hardware shift offset
+    2,       // Column hardware shift offset <-- CHANGE FROM 0 TO 2
+    3,       // Row hardware shift offset    <-- CHANGE FROM 0 TO 3
     0,            // Alternative column hardware shift offset
     0,            // Alternative row hardware shift offset
     true         // BGR color layout flag toggling configuration
   );
+
+
+
+
       
   #else
     // new display specs here
