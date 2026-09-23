@@ -71,6 +71,18 @@ class TTGO_TDISPLAY_OUTPUT : public Usermod {
       int8_t pinDc   = (int8_t) MY_PIN_DC;
       int8_t pinRst  = (int8_t) MY_PIN_RST;
       int8_t pinBl   = (int8_t) MY_PIN_BL;
+    #elif ST7789_SIZE_320X170_PARALLEL_8_BIT
+
+    // Explicitly map local assignments instead of using unavailable SPI macros
+     int8_t pinMosi = 39; // Maps to your physical TFT_D0 line
+     int8_t pinSclk = 8;  // Maps to your physical TFT_WR Write line acting as the clock
+     int8_t pinDc   = 7;  // TFT_DC Data/Command line
+     int8_t pinCs   = 6;  // TFT_CS Chip Select
+     int8_t pinRst  = 5;  // TFT_RST Reset line
+     int8_t pinBl   = 38; // TFT_BL Backlight control
+
+
+      
     #else // Fallback constants for other functional environments (S3 / CYD)
       int8_t pinMosi = (int8_t)TFT_MOSI;
       int8_t pinSclk = (int8_t)TFT_SCLK;
