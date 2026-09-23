@@ -259,10 +259,11 @@ gfx = new Arduino_ST7735(
       if (segW != blocksW || segH != blocksH) {
         blocksW = segW;
         blocksH = segH;
+
         
-        // Calculate block bounds cleanly against your native landscape targets
-        blockWidth  = targetWidth / blocksW;
-        blockHeight = targetHeight / blocksH;
+        blockWidth  = segW / blocksW;
+        blockHeight = segH / blocksH;
+
         
         if (blockWidth == 0)  blockWidth  = 1;
         if (blockHeight == 0) blockHeight = 1;
